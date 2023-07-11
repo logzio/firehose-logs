@@ -19,9 +19,6 @@ Parameters:
       The log type you'll use with this shipping method.
       This can be a built-in log type, or your custom log type
     Default: 'logzio_firehose'
-  logzioEnrich:
-    Type: String
-    Description: Enriches the CloudWatch events with custom properties at ship time. The format is `key1=value1;key2=value2`. By default is empty.
   services:
     Type: String
     Description: A comma-seperated list of services you want to collect logs from
