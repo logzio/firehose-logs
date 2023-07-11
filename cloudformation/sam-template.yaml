@@ -1,0 +1,290 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: >-
+  Ship your Cloudwatch logs to Logz.io via Kinesis Firehose
+Parameters:
+  logzioListener:
+    Type: String
+    Description: 'The Logz.io listener URL for your region. You can find explanations here: https://docs.logz.io/user-guide/accounts/account-region.html'
+    Default: 'https://aws-firehose-logs-listener.logz.io'
+    AllowedValues:
+      - 'https://aws-firehose-logs-listener.logz.io'
+  logzioToken:
+    Type: String
+    Description: 'Your Logz.io log shipping token'
+    MinLength: 1
+  logzioType:
+    Type: String
+    Description: >-
+      The log type you'll use with this shipping method.
+      This can be a built-in log type, or your custom log type
+    Default: 'logzio_firehose'
+  logzioEnrich:
+    Type: String
+    Description: Enriches the CloudWatch events with custom properties at ship time. The format is `key1=value1;key2=value2`. By default is empty.
+  services:
+    Type: String
+    Description: A comma-seperated list of services you want to collect logs from
+  customLogGroups:
+    Type: String
+    Description: A comma-seperated list of custom log groups you want to collect logs from
+  triggerLambdaTimeout:
+    Type: Number
+    Description: >-
+      The amount of seconds that Lambda allows a function to run before stopping it, for the trigger function.
+    Default: 60
+  triggerLambdaMemory:
+    Type: Number
+    Description: Trigger function's allocated CPU proportional to the memory configured, in MB.
+    Default: 512
+  triggerLambdaLogLevel:
+    Type: String
+    Description: 'Log level for the Lambda function. Can be one of: debug, info, warn, error, fatal, panic.'
+    Default: info
+    AllowedValues:
+      - debug
+      - info
+      - warn
+      - error
+      - fatal
+      - panic
+  httpEndpointDestinationIntervalInSeconds:
+    Type: Number
+    Description: 'The length of time, in seconds, that Kinesis Data Firehose buffers incoming data before delivering it to the destination'
+    Default: 60
+  httpEndpointDestinationSizeInMBs:
+    Type: Number
+    Description: 'The size of the buffer, in MBs, that Kinesis Data Firehose uses for incoming data before delivering it to the destination'
+    Default: 5
+
+Conditions:
+  createEventbridgeTrigger: !Not
+    - !Equals
+      - !Ref services
+      - ''
+
+Resources:
+  logzioFirehoseSubscriptionFiltersFunction:
+    Type: 'AWS::Lambda::Function'
+    DependsOn: logzioFirehose
+    Properties:
+      Code:
+        S3Bucket: logzio-aws-integrations-<<REGION>>
+        S3Key: firehose-subscription-filters/<<VERSION>>/function.zip
+      FunctionName:  !Join ['-', [!Ref AWS::StackName, 'sf-func']]
+      Handler: bootstrap
+      Runtime: provided.al2
+      Role: !GetAtt firehoseSubscriptionFilterLambdaRole.Arn
+      Timeout: !Ref triggerLambdaTimeout
+      MemorySize: !Ref triggerLambdaMemory
+      ReservedConcurrentExecutions: 1
+      Environment:
+        Variables:
+          SERVICES: !Ref services
+          CUSTOM_GROUPS: !Ref customLogGroups
+          ACCOUNT_ID: !Ref AWS::AccountId
+          AWS_PARTITION: !Ref AWS::Partition
+          FIREHOSE_ARN: !GetAtt logzioFirehose.Arn
+          LOG_LEVEL: !Ref triggerLambdaLogLevel
+          PUT_SF_ROLE: !GetAtt firehosePutSubscriptionFilterRole.Arn
+  firehoseSubscriptionFilterLambdaRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Join [ '-', [ 'logzioRole', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: !Join [ '-', [ 'logzioRole', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'logs:DescribeLogGroups'
+                  - 'logs:PutSubscriptionFilter'
+                  - 'logs:DeleteSubscriptionFilter'
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*'
+                  - !GetAtt logzioFirehose.Arn
+              - Effect: Allow
+                Action:
+                  - 'iam:PassRole'
+                Resource: !GetAtt firehosePutSubscriptionFilterRole.Arn
+  triggerPrimerInvoke:
+    Type: AWS::CloudFormation::CustomResource
+    DependsOn: logzioFirehoseSubscriptionFiltersFunction
+    Version: '1.0'
+    Properties:
+      ServiceToken: !GetAtt logzioFirehoseSubscriptionFiltersFunction.Arn
+  logGroupCreationEvent:
+    Condition: createEventbridgeTrigger
+    Type: AWS::Events::Rule
+    Properties:
+      Description: 'This event is triggered by the creation of a new log group, and triggers the Logz.io subscription filter function.'
+      EventPattern:
+        source:
+          - 'aws.logs'
+        detail-type:
+          - 'AWS API Call via CloudTrail'
+        detail:
+          eventSource:
+            - 'logs.amazonaws.com'
+          eventName:
+            - 'CreateLogGroup'
+      Name: !Join [ '-', [ 'logGroupCreated', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt logzioFirehoseSubscriptionFiltersFunction.Arn
+          Id: !Join [ '-', [ 'logzioSubscriptionFilter', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
+  permissionForEventsToInvokeLambda:
+    Condition: createEventbridgeTrigger
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref logzioFirehoseSubscriptionFiltersFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt logGroupCreationEvent.Arn
+  logzioFirehose:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties:
+      DeliveryStreamName: !Join [ '-', [ 'logzio', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
+      DeliveryStreamType: 'DirectPut'
+      HttpEndpointDestinationConfiguration:
+        BufferingHints:
+          IntervalInSeconds: !Ref httpEndpointDestinationIntervalInSeconds
+          SizeInMBs: !Ref httpEndpointDestinationSizeInMBs
+        CloudWatchLoggingOptions:
+          Enabled: true
+          LogGroupName: !Ref logzioFirehoseLogGroup
+          LogStreamName: !Ref logzioLogStream
+        EndpointConfiguration:
+          AccessKey: !Ref logzioToken
+          Name: !Join [ '-', [ 'LogzioEndpoint', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
+          Url: !Sub '${logzioListener}/?type=${logzioType}'
+        RetryOptions:
+          DurationInSeconds: 60
+        RoleARN: !GetAtt logzioFirehoseLoggingRole.Arn
+        S3BackupMode: FailedDataOnly
+        S3Configuration:
+          BucketARN: !GetAtt logzioS3BackupBucket.Arn
+          RoleARN: !GetAtt logzioS3DestinationFirehoseRole.Arn
+  logzioFirehoseLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join [ '-', [ 'logzio-logs-firehose', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
+  logzioLogStream:
+    DependsOn: logzioFirehoseLogGroup
+    Type: AWS::Logs::LogStream
+    Properties:
+      LogGroupName: !Ref logzioFirehoseLogGroup
+      LogStreamName: !Join [ '-', [ 'logzio-logs-firehose', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
+  logzioFirehoseLoggingRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Join [ '-', [ 'LogzioFirehoseLoggingRole', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - firehose.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: !Join [ '-', [ 'LogzioFirehoseLoggingPolicy', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:PutLogEvents'
+                Resource:
+                  - !Sub
+                    - 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${NewLogGroupName}:${NewLogStreamName}:*'
+                    - NewLogGroupName: !Ref logzioFirehoseLogGroup
+                      NewLogStreamName: !Ref logzioLogStream
+  logzioS3BackupBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Join [ '-', [ 'logzio-logs-backup', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
+  logzioS3DestinationFirehoseRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Join [ '-', [ 'LogzioS3DestFirehoseRole', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - firehose.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: !Join [ '-', [ 'LogzioS3DestFirehosePolicy', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:AbortMultipartUpload'
+                  - 's3:GetBucketLocation'
+                  - 's3:GetObject'
+                  - 's3:ListBucket'
+                  - 's3:ListBucketMultipartUploads'
+                  - 's3:PutObject'
+                Resource:
+                  - !Sub
+                    - 'arn:aws:s3:::${BucketName}'
+                    - BucketName: !Ref logzioS3BackupBucket
+                  - !Sub
+                    - 'arn:aws:s3:::${BucketName}/*'
+                    - BucketName: !Ref logzioS3BackupBucket
+              - Effect: Allow
+                Action:
+                  - 'logs:PutLogEvents'
+                Resource:
+                  - !Sub
+                    - 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${NewLogGroupName}:${NewLogStreamName}:*'
+                    - NewLogGroupName: !Ref logzioFirehoseLogGroup
+                      NewLogStreamName: !Ref logzioLogStream
+  firehosePutSubscriptionFilterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join [ '-', [ 'logzioPutSFRole', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: logs.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: !Join [ '-', [ 'logzioPutSFPolicy', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'firehose:PutRecordBatch'
+                  - 'firehose:DescribeDeliveryStream'
+                  - 'firehose:PutRecord'
+                Resource: !GetAtt logzioFirehose.Arn
