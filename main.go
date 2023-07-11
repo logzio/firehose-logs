@@ -116,7 +116,7 @@ func customResourceRunDelete(ctx context.Context, event cfn.Event) (physicalReso
 		}
 	}
 
-	sugLog.Debug("Deleted subscription filters for the following log groups: ", deleted)
+	sugLog.Info("Deleted subscription filters for the following log groups: ", deleted)
 
 	return
 }
@@ -178,7 +178,7 @@ func handleFirstInvocation() error {
 		}
 	}
 
-	sugLog.Debug("Following these log groups: ", added)
+	sugLog.Info("Following these log groups: ", added)
 
 	return nil
 }
