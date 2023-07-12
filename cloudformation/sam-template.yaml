@@ -9,6 +9,12 @@ Parameters:
     Default: 'https://aws-firehose-logs-listener.logz.io'
     AllowedValues:
       - 'https://aws-firehose-logs-listener.logz.io'
+      - 'https://aws-firehose-logs-listener-au.logz.io'
+      - 'https://aws-firehose-logs-listener-ca.logz.io'
+      - 'https://aws-firehose-logs-listener-eu.logz.io'
+      - 'https://aws-firehose-logs-listener-nl.logz.io'
+      - 'https://aws-firehose-logs-listener-uk.logz.io'
+      - 'https://aws-firehose-logs-listener-wa.logz.io'
   logzioToken:
     Type: String
     Description: 'Your Logz.io log shipping token'
