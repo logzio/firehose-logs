@@ -73,7 +73,7 @@ Resources:
     Properties:
       Code:
         S3Bucket: logzio-aws-integrations-<<REGION>>
-        S3Key: firehose-subscription-filters/<<VERSION>>/function.zip
+        S3Key: firehose-logs/<<VERSION>>/function.zip
       FunctionName:  !Join ['-', [!Ref AWS::StackName, 'sf-func']]
       Handler: bootstrap
       Runtime: provided.al2
