@@ -67,4 +67,5 @@ If you've used the `services` field, you'll have to **wait 6 minutes** before cr
 
 ### Changelog:
 
+- **0.0.2**: Fix for RDS service - look for prefix `/aws/rds/`
 - **0.0.1**: Initial release.
