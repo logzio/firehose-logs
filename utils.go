@@ -34,7 +34,7 @@ func getServices() []string {
 func getServicesMap() map[string]string {
 	return map[string]string{
 		"apigateway":       "/aws/apigateway/",
-		"rds":              "/aws/rds/cluster/",
+		"rds":              "/aws/rds/",
 		"cloudhsm":         "/aws/cloudhsm/",
 		"cloudtrail":       "aws-cloudtrail-logs-",
 		"codebuild":        "/aws/codebuild/",
