@@ -1,4 +1,4 @@
-package main
+package common
 
 import (
 	"os"
@@ -8,7 +8,7 @@ import (
 const (
 	envServices                  = "SERVICES"
 	envAwsRegion                 = "AWS_REGION"               // reserved env
-	envFunctionName              = "AWS_LAMBDA_FUNCTION_NAME" // reserved env
+	EnvFunctionName              = "AWS_LAMBDA_FUNCTION_NAME" // reserved env
 	envFirehoseArn               = "FIREHOSE_ARN"
 	envAccountId                 = "ACCOUNT_ID"
 	envCustomGroups              = "CUSTOM_GROUPS"
@@ -17,11 +17,11 @@ const (
 
 	valuesSeparator        = ","
 	emptyString            = ""
-	lambdaPrefix           = "/aws/lambda/"
+	LambdaPrefix           = "/aws/lambda/"
 	subscriptionFilterName = "logzio_firehose"
 )
 
-func getServices() []string {
+func GetServices() []string {
 	servicesStr := os.Getenv(envServices)
 	if servicesStr == emptyString {
 		return nil
@@ -31,7 +31,7 @@ func getServices() []string {
 	return strings.Split(servicesStr, valuesSeparator)
 }
 
-func getServicesMap() map[string]string {
+func GetServicesMap() map[string]string {
 	return map[string]string{
 		"apigateway":       "/aws/apigateway/",
 		"rds":              "/aws/rds/",
@@ -50,7 +50,7 @@ func getServicesMap() map[string]string {
 	}
 }
 
-func getCustomPaths() []string {
+func GetCustomPaths() []string {
 	pathsStr := os.Getenv(envCustomGroups)
 	if pathsStr == emptyString {
 		return nil
@@ -60,7 +60,16 @@ func getCustomPaths() []string {
 	return strings.Split(pathsStr, valuesSeparator)
 }
 
-func listContains(s string, l []string) bool {
+func ParseServices(servicesStr string) []string {
+	if servicesStr == emptyString {
+		return nil
+	}
+
+	servicesStr = strings.ReplaceAll(servicesStr, " ", "")
+	return strings.Split(servicesStr, valuesSeparator)
+}
+
+func ListContains(s string, l []string) bool {
 	for _, item := range l {
 		if s == item {
 			return true

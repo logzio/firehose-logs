@@ -4,7 +4,7 @@ on:
     types: [published]
 
 jobs:
-  build_function:
+  build_functions:
     name: Build function
     runs-on: ubuntu-latest
     steps:
@@ -28,10 +28,32 @@ jobs:
         env:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prepare function environments
+        run: |
+          cp -R common cfn-lambda/ && cp -R common eventbridge-lambda/
+
+      - name: Build CloudFormation Lambda function
+        run: |
+          GOOS=linux GOARCH=amd64 go build -o cfn-lambda/bootstrap ./cfn-lambda
+          cd cfn-lambda
+          zip -r ../cfn-lambda.zip .
+          cd ..
+
+      - name: Build EventBridge Lambda function
+        run: |
+          GOOS=linux GOARCH=amd64 go build -o eventbridge-lambda/bootstrap ./eventbridge-lambda
+          cd eventbridge-lambda
+          zip -r ../eventbridge-lambda.zip .
+          cd ..
+
+      - name: Cleanup common folders
+        run: |
+          rm -rf cfn-lambda/common
+          rm -rf eventbridge-lambda/common
   upload_to_buckets:
     name: Upload to S3 buckets
     runs-on: ubuntu-latest
-    needs: build_function
+    needs: build_functions
     strategy:
       matrix:
         aws_region:
@@ -55,23 +77,22 @@ jobs:
     steps:
       - name: Check out the repo
         uses: actions/checkout@v3
-      - name: download zip
-        run: wget -c https://github.com/logzio/firehose-logs/releases/download/${{ github.event.release.tag_name }}/firehose-logs_${{ github.event.release.tag_name }}_linux_amd64.zip -O function.zip
       - name: create new version
         run: |
           cp ./cloudformation/sam-template.yaml ./sam-template-${{ matrix.aws_region }}.yaml
           sed -i "s/<<VERSION>>/${{ github.event.release.tag_name }}/" "./sam-template-${{ matrix.aws_region }}.yaml"
           sed -i "s/<<REGION>>/${{ matrix.aws_region }}/" "./sam-template-${{ matrix.aws_region }}.yaml"
-      - name: Upload to aws
+      - name: Configure AWS CLI
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+          aws-region: ${{ matrix.aws_region }}
+      - name: Upload CloudFormation Lambda ZIP and SAM templates to S3
         run: |
-          sudo apt-get update
-          sudo apt-get install awscli
-          aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY }}
-          aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_KEY }}
-          aws configure set region ${{ matrix.aws_region }}
           aws s3 cp ./sam-template-${{ matrix.aws_region }}.yaml s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release.tag_name }}/sam-template.yaml --acl public-read
-          aws s3 cp ./function.zip s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release.tag_name }}/function.zip --acl public-read
+          aws s3 cp ./cfn-lambda.zip s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release.tag_name }}/cfn-lambda.zip --acl public-read
+          aws s3 cp ./eventbridge-lambda.zip s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release.tag_name }}/eventbridge-lambda.zip --acl public-read
       - name: Clean
         run: |
           rm ./sam-template-${{ matrix.aws_region }}.yaml
-          rm ./function.zip

@@ -1,4 +1,4 @@
-module main
+module firehose-logs
 
 go 1.19
 
