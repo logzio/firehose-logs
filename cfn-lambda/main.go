@@ -2,13 +2,13 @@ package main
 
 import (
 	"context"
-	"firehose-logs/common"
-	lp "firehose-logs/logger"
 	"fmt"
 	"github.com/aws/aws-lambda-go/cfn"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
+	"github.com/logzio/firehose-logs/common"
+	lp "github.com/logzio/firehose-logs/logger"
 	"go.uber.org/zap"
 	"os"
 )
@@ -58,11 +58,7 @@ func customResourceRunUpdate(ctx context.Context, event cfn.Event) (physicalReso
 	oldConfig := event.OldResourceProperties
 	newConfig := event.ResourceProperties
 
-	sugLog.Infow("Received CloudFormation event2", "event", event)
-	sugLog.Infow("Received CloudFormation event3", "event", oldConfig)
-
 	physicalResourceID = generatePhysicalResourceId(event)
-	sugLog.Infow("physicalResourceID", "physicalResourceID on update", physicalResourceID)
 
 	err = updateConfiguration(ctx, oldConfig, newConfig)
 	if err != nil {
@@ -109,36 +105,15 @@ func updateConfiguration(ctx context.Context, oldConfig, newConfig map[string]in
 		return err
 	}
 
-	// Log the extracted configuration strings
-	sugLog.Infow("Configuration strings extracted",
-		"Old Services String", oldServicesStr,
-		"New Services String", newServicesStr,
-		"Old Custom Groups String", oldCustomGroupsStr,
-		"New Custom Groups String", newCustomGroupsStr)
-
 	// Parse services and custom log groups
 	oldServices := common.ParseServices(oldServicesStr)
 	newServices := common.ParseServices(newServicesStr)
 	oldCustomGroups := common.ParseServices(oldCustomGroupsStr)
 	newCustomGroups := common.ParseServices(newCustomGroupsStr)
 
-	// Log the results of parsing
-	sugLog.Infow("Parsed services and custom groups",
-		"Parsed Old Services", oldServices,
-		"Parsed New Services", newServices,
-		"Parsed Old Custom Groups", oldCustomGroups,
-		"Parsed New Custom Groups", newCustomGroups)
-
 	// Find differences in services and custom log groups
 	servicesToAdd, servicesToRemove := findDifferences(oldServices, newServices)
 	customGroupsToAdd, customGroupsToRemove := findDifferences(oldCustomGroups, newCustomGroups)
-
-	// Log the differences found
-	sugLog.Infow("Differences in services and custom groups",
-		"Services to Add", servicesToAdd,
-		"Services to Remove", servicesToRemove,
-		"Custom Groups to Add", customGroupsToAdd,
-		"Custom Groups to Remove", customGroupsToRemove)
 
 	// Update subscription filters
 	if err := updateSubscriptionFilters(sess, servicesToAdd, servicesToRemove, customGroupsToAdd, customGroupsToRemove); err != nil {
@@ -228,7 +203,6 @@ func findDifferences(old, new []string) (toAdd, toRemove []string) {
 // Wrapper for first invocation from cloud formation custom resource
 func customResourceRun(ctx context.Context, event cfn.Event) (physicalResourceID string, data map[string]interface{}, err error) {
 	physicalResourceID = generatePhysicalResourceId(event)
-	sugLog.Infow("physicalResourceID", "physicalResourceID on create", physicalResourceID)
 
 	err = handleFirstInvocation()
 	if err != nil {
@@ -277,7 +251,6 @@ func customResourceRunDelete(ctx context.Context, event cfn.Event) (physicalReso
 	sugLog.Info("Deleted subscription filters for the following log groups: ", deleted)
 
 	physicalResourceID = generatePhysicalResourceId(event)
-	sugLog.Infow("physicalResourceID", "physicalResourceID on delete", physicalResourceID)
 	// Populate your data map as needed for the update
 	data = make(map[string]interface{})
 	// Populate data as needed
@@ -404,7 +377,6 @@ func deleteServices(sess *session.Session, servicesToDelete []string) ([]string,
 		"logGroups", logGroups)
 
 	if len(logGroups) > 0 {
-		sugLog.Info("Detected the following services for deletion: ", logGroups)
 		newDeleted := common.DeleteSubscriptionFilter(logGroups, logsClient)
 		sugLog.Infow("Deleted subscription filters",
 			"deletedLogGroups", newDeleted)
@@ -417,9 +389,6 @@ func deleteServices(sess *session.Session, servicesToDelete []string) ([]string,
 
 func deleteCustom(sess *session.Session, customGroup []string) ([]string, error) {
 	logsClient := cloudwatchlogs.New(sess)
-	// Log the custom log groups that are targeted for deletion
-	sugLog.Infow("Attempting to delete custom subscription filters",
-		"customLogGroups", customGroup)
 
 	newDeleted := common.DeleteSubscriptionFilter(customGroup, logsClient)
 

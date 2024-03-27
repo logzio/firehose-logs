@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
-	"firehose-logs/common"
-	lp "firehose-logs/logger"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
+	"github.com/logzio/firehose-logs/common"
+	lp "github.com/logzio/firehose-logs/logger"
 	"go.uber.org/zap"
 	"os"
 	"strings"
