@@ -1,8 +1,26 @@
 before:
   hooks:
+    - go mod tidy
 builds:
-  - id: "lambda"
-    dir: "."
+  - id: "cfn-lambda"
+    dir: "cfn-lambda/"
+    main: "."
+    binary: "bootstrap"
+    env:
+      - CGO_ENABLED=0
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    flags:
+      - -trimpath
+    ldflags:
+      - '-s -w -X main.version={{.Version}} -X main.commit={{.Commit}}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - id: "eventbridge-lambda"
+    dir: "eventbridge-lambda/"
+    main: "."
+    binary: "bootstrap"
     env:
       - CGO_ENABLED=0
     mod_timestamp: '{{ .CommitTimestamp }}'
@@ -15,20 +33,20 @@ builds:
     goarch:
       - amd64
 archives:
-  - id: "cfn-lambda"
+  - id: "cfn-lambda-archive"
     builds:
-      - "lambda"
+      - "cfn-lambda"
     format: zip
     name_template: 'cfn-lambda_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
     files:
-      - "cfn-lambda/bootstrap"
-  - id: "eventbridge-lambda"
+      - none
+  - id: "eventbridge-lambda-archive"
     builds:
-      - "lambda"
+      - "eventbridge-lambda"
     format: zip
     name_template: 'eventbridge-lambda_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
     files:
-      - "eventbridge-lambda/bootstrap"
+      - none
 release:
   draft: true
 changelog:
