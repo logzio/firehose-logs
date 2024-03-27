@@ -38,15 +38,11 @@ archives:
       - "cfn-lambda"
     format: zip
     name_template: 'cfn-lambda_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
-    files:
-      - none
   - id: "eventbridge-lambda"
     builds:
       - "eventbridge-lambda"
     format: zip
     name_template: 'eventbridge-lambda_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
-    files:
-      - none
 release:
   draft: true
 changelog:
