@@ -1,7 +1,9 @@
 before:
   hooks:
 builds:
-  - env:
+  - id: "lambda"
+    dir: "."
+    env:
       - CGO_ENABLED=0
     mod_timestamp: '{{ .CommitTimestamp }}'
     flags:
@@ -12,10 +14,22 @@ builds:
       - linux
     goarch:
       - amd64
-    binary: 'bootstrap'
 archives:
-  - format: zip
-    name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+  - id: "cfn-lambda"
+    builds:
+      - "lambda"
+    format: zip
+    name_template: 'cfn-lambda_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    files:
+      - "cfn-lambda/bootstrap"
+  - id: "eventbridge-lambda"
+    builds:
+      - "lambda"
+    format: zip
+    name_template: 'eventbridge-lambda_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    files:
+      - "eventbridge-lambda/bootstrap"
 release:
+  draft: true
 changelog:
   skip: true
