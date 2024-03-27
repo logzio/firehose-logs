@@ -33,14 +33,14 @@ builds:
     goarch:
       - amd64
 archives:
-  - id: "cfn-lambda-archive"
+  - id: "cfn-lambda"
     builds:
       - "cfn-lambda"
     format: zip
     name_template: 'cfn-lambda_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
     files:
       - none
-  - id: "eventbridge-lambda-archive"
+  - id: "eventbridge-lambda"
     builds:
       - "eventbridge-lambda"
     format: zip
