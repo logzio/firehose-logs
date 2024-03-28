@@ -67,17 +67,17 @@ Conditions:
       - ''
 
 Resources:
-  logzioFirehoseSubscriptionFiltersFunction:
+  CfnLambdaFunction:
     Type: 'AWS::Lambda::Function'
     DependsOn: logzioFirehose
     Properties:
       Code:
         S3Bucket: logzio-aws-integrations-<<REGION>>
-        S3Key: firehose-logs/<<VERSION>>/function.zip
-      FunctionName:  !Join ['-', [!Ref AWS::StackName, 'sf-func']]
+        S3Key: firehose-logs/<<VERSION>>/cfn-lambda.zip
+      FunctionName: !Join [ '-', [ !Ref AWS::StackName, 'cfn-lambda' ] ]
       Handler: bootstrap
       Runtime: provided.al2
-      Role: !GetAtt firehoseSubscriptionFilterLambdaRole.Arn
+      Role: !GetAtt lambdaExecutionRole.Arn
       Timeout: !Ref triggerLambdaTimeout
       MemorySize: !Ref triggerLambdaMemory
       ReservedConcurrentExecutions: 1
@@ -90,7 +90,53 @@ Resources:
           FIREHOSE_ARN: !GetAtt logzioFirehose.Arn
           LOG_LEVEL: !Ref triggerLambdaLogLevel
           PUT_SF_ROLE: !GetAtt firehosePutSubscriptionFilterRole.Arn
-  firehoseSubscriptionFilterLambdaRole:
+
+  EventBridgeLambdaFunction:
+    Type: 'AWS::Lambda::Function'
+    DependsOn: logzioFirehose
+    Properties:
+      Code:
+        S3Bucket: logzio-aws-integrations-<<REGION>>
+        S3Key: firehose-logs/<<VERSION>>/eventbridge-lambda.zip
+      FunctionName: !Join [ '-', [ !Ref AWS::StackName, 'eventbridge-lambda' ] ]
+      Handler: bootstrap
+      Runtime: provided.al2
+      Role: !GetAtt lambdaExecutionRole.Arn
+      Timeout: !Ref triggerLambdaTimeout
+      MemorySize: !Ref triggerLambdaMemory
+      ReservedConcurrentExecutions: 1
+      Environment:
+        Variables:
+          SERVICES: !Ref services
+          CUSTOM_GROUPS: !Ref customLogGroups
+          ACCOUNT_ID: !Ref AWS::AccountId
+          AWS_PARTITION: !Ref AWS::Partition
+          FIREHOSE_ARN: !GetAtt logzioFirehose.Arn
+          LOG_LEVEL: !Ref triggerLambdaLogLevel
+          PUT_SF_ROLE: !GetAtt firehosePutSubscriptionFilterRole.Arn
+  LogGroupCreationEventRule:
+    Type: 'AWS::Events::Rule'
+    Properties:
+      EventPattern:
+        source:
+          - 'aws.logs'
+        detail-type:
+          - 'AWS API Call via CloudTrail'
+        detail:
+          eventName:
+            - 'CreateLogGroup'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt EventBridgeLambdaFunction.Arn
+          Id: 'EventBridgeLambdaFunctionTarget'
+  PermissionForEventBridgeToInvokeLambda:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !GetAtt EventBridgeLambdaFunction.Arn
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt LogGroupCreationEventRule.Arn
+  lambdaExecutionRole:
     Type: 'AWS::IAM::Role'
     Properties:
       RoleName: !Join [ '-', [ 'logzioRole', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
@@ -129,10 +175,12 @@ Resources:
                 Resource: !GetAtt firehosePutSubscriptionFilterRole.Arn
   triggerPrimerInvoke:
     Type: AWS::CloudFormation::CustomResource
-    DependsOn: logzioFirehoseSubscriptionFiltersFunction
+    DependsOn: CfnLambdaFunction
     Version: '1.0'
     Properties:
-      ServiceToken: !GetAtt logzioFirehoseSubscriptionFiltersFunction.Arn
+      ServiceToken: !GetAtt CfnLambdaFunction.Arn
+      Services: !Ref services
+      CustomLogGroups: !Ref customLogGroups
   logGroupCreationEvent:
     Condition: createEventbridgeTrigger
     Type: AWS::Events::Rule
@@ -151,13 +199,13 @@ Resources:
       Name: !Join [ '-', [ 'logGroupCreated', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
       State: ENABLED
       Targets:
-        - Arn: !GetAtt logzioFirehoseSubscriptionFiltersFunction.Arn
-          Id: !Join [ '-', [ 'logzioSubscriptionFilter', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
+        - Arn: !GetAtt EventBridgeLambdaFunction.Arn
+          Id: 'EventBridgeLambdaFunctionTarget'
   permissionForEventsToInvokeLambda:
     Condition: createEventbridgeTrigger
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref logzioFirehoseSubscriptionFiltersFunction
+      FunctionName: !Ref EventBridgeLambdaFunction
       Action: 'lambda:InvokeFunction'
       Principal: 'events.amazonaws.com'
       SourceArn: !GetAtt logGroupCreationEvent.Arn
