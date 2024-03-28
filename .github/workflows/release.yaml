@@ -136,8 +136,9 @@ jobs:
           else
             echo "cfn-lambda.zip not found, skipping upload."
             exit 1
-        
-          # Upload the EventBridge Lambda ZIP to S3
+          fi
+               
+        # Upload the EventBridge Lambda ZIP to S3
           if [ -f ./eventbridge-lambda.zip ]; then
             aws s3 cp ./eventbridge-lambda.zip s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release.tag_name }}/eventbridge-lambda.zip --acl public-read
           else
