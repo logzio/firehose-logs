@@ -8,18 +8,26 @@ jobs:
     name: Build function
     runs-on: ubuntu-latest
     steps:
+      # Check out the repository to the runner
       - name: Check out the repo
         uses: actions/checkout@v3
+
+      # Fetch all history for all tags and branches
       - run: git fetch --prune --unshallow
+
+      # Setup Go environment
       - uses: actions/setup-go@v3
         with:
           go-version: '1.19'
+
+      # Import GPG key for GoReleaser
       - name: Import GPG key
         id: import_gpg
         uses: crazy-max/ghaction-import-gpg@v4
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.PASSPHRASE }}
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2
         with:
@@ -28,28 +36,35 @@ jobs:
         env:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Prepare function environments
         run: |
           cp -R common cfn-lambda/ && cp -R common eventbridge-lambda/
 
+      # Build the CloudFormation Lambda function
       - name: Build CloudFormation Lambda function
         run: |
-          GOOS=linux GOARCH=amd64 go build -o cfn-lambda/bootstrap ./cfn-lambda
           cd cfn-lambda
-          zip -r ../cfn-lambda.zip .
+          GOOS=linux GOARCH=amd64 go build -o bootstrap .
+          zip -r cfn-lambda.zip bootstrap
+          mv cfn-lambda.zip ../
           cd ..
 
+      # Build the EventBridge Lambda function
       - name: Build EventBridge Lambda function
         run: |
-          GOOS=linux GOARCH=amd64 go build -o eventbridge-lambda/bootstrap ./eventbridge-lambda
           cd eventbridge-lambda
-          zip -r ../eventbridge-lambda.zip .
+          GOOS=linux GOARCH=amd64 go build -o bootstrap .
+          zip -r eventbridge-lambda.zip bootstrap
+          mv eventbridge-lambda.zip ../
           cd ..
 
       - name: Cleanup common folders
         run: |
           rm -rf cfn-lambda/common
           rm -rf eventbridge-lambda/common
+
+  # Upload built artifacts to S3
   upload_to_buckets:
     name: Upload to S3 buckets
     runs-on: ubuntu-latest
@@ -87,24 +102,31 @@ jobs:
 #          - 'me-central-1'
 #          - 'il-central-1'
     steps:
+      # Checkout is required to access the artifacts from the previous job
       - name: Check out the repo
         uses: actions/checkout@v3
+
+      # Create a new version of the SAM template for each AWS region
       - name: create new version
         run: |
           cp ./cloudformation/sam-template.yaml ./sam-template-${{ matrix.aws_region }}.yaml
           sed -i "s/<<VERSION>>/${{ github.event.release.tag_name }}/" "./sam-template-${{ matrix.aws_region }}.yaml"
           sed -i "s/<<REGION>>/${{ matrix.aws_region }}/" "./sam-template-${{ matrix.aws_region }}.yaml"
+
       - name: Configure AWS CLI
         uses: aws-actions/configure-aws-credentials@v1
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
           aws-region: ${{ matrix.aws_region }}
+
       - name: Upload CloudFormation Lambda ZIP and SAM templates to S3
         run: |
-          aws s3 cp ./sam-template-${{ matrix.aws_region }}.yaml s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release.tag_name }}/sam-template.yaml --acl public-read
           aws s3 cp ./cfn-lambda.zip s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release.tag_name }}/cfn-lambda.zip --acl public-read
           aws s3 cp ./eventbridge-lambda.zip s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release.tag_name }}/eventbridge-lambda.zip --acl public-read
+          aws s3 cp ./sam-template-${{ matrix.aws_region }}.yaml s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release.tag_name }}/sam-template.yaml --acl public-read
+
+      # Clean up the workspace
       - name: Clean
         run: |
           rm ./sam-template-${{ matrix.aws_region }}.yaml
