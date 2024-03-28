@@ -48,7 +48,7 @@ jobs:
           GOOS=linux GOARCH=amd64 go build -o bootstrap .
           zip -r ../cfn-lambda.zip bootstrap
           cd ..
-      - name: Upload Artifact
+      - name: Upload Artifact for CloudFormation Lambda
         uses: actions/upload-artifact@v2
         with:
           name: cfn-lambda-zip
@@ -59,9 +59,13 @@ jobs:
         run: |
           cd eventbridge-lambda
           GOOS=linux GOARCH=amd64 go build -o bootstrap .
-          zip -r eventbridge-lambda.zip bootstrap
-          mv eventbridge-lambda.zip ../
+          zip -r ../eventbridge-lambda.zip bootstrap
           cd ..
+      - name: Upload Artifact for EventBridge Lambda
+        uses: actions/upload-artifact@v2
+        with:
+          name: eventbridge-lambda-zip
+          path: eventbridge-lambda.zip
 
       - name: Cleanup common folders
         run: |
@@ -106,16 +110,20 @@ jobs:
 #          - 'me-central-1'
 #          - 'il-central-1'
     steps:
-      # Checkout is required to access the artifacts from the previous job
       - name: Check out the repo
         uses: actions/checkout@v3
 
-      # Create a new version of the SAM template for each AWS region
-      - name: create new version
-        run: |
-          cp ./cloudformation/sam-template.yaml ./sam-template-${{ matrix.aws_region }}.yaml
-          sed -i "s/<<VERSION>>/${{ github.event.release.tag_name }}/" "./sam-template-${{ matrix.aws_region }}.yaml"
-          sed -i "s/<<REGION>>/${{ matrix.aws_region }}/" "./sam-template-${{ matrix.aws_region }}.yaml"
+      - name: Download Artifact for CloudFormation Lambda
+        uses: actions/download-artifact@v2
+        with:
+          name: cfn-lambda-zip
+          path: .
+
+      - name: Download Artifact for EventBridge Lambda
+        uses: actions/download-artifact@v2
+        with:
+          name: eventbridge-lambda-zip
+          path: .
 
       - name: Configure AWS CLI
         uses: aws-actions/configure-aws-credentials@v1
@@ -124,31 +132,21 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
           aws-region: ${{ matrix.aws_region }}
 
-      - name: Download Artifact
-        uses: actions/download-artifact@v2
-        with:
-          name: cfn-lambda-zip
-          path: .
       - name: Upload CloudFormation Lambda ZIP to S3
         run: |
-          if [ -f ./cfn-lambda.zip ]; then
-            aws s3 cp ./cfn-lambda.zip s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release.tag_name }}/cfn-lambda.zip --acl public-read
-          else
-            echo "cfn-lambda.zip not found, skipping upload."
-            exit 1
-          fi
-               
-        # Upload the EventBridge Lambda ZIP to S3
-          if [ -f ./eventbridge-lambda.zip ]; then
-            aws s3 cp ./eventbridge-lambda.zip s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release.tag_name }}/eventbridge-lambda.zip --acl public-read
-          else
-            echo "eventbridge-lambda.zip not found, skipping upload."
-            exit 1
-          fi 
-          
-          aws s3 cp ./sam-template-${{ matrix.aws_region }}.yaml s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release.tag_name }}/sam-template.yaml --acl public-read
+          aws s3 cp ./cfn-lambda.zip s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release.tag_name }}/cfn-lambda.zip --acl public-read
 
-      # Clean up the workspace
+      - name: Upload EventBridge Lambda ZIP to S3
+        run: |
+          aws s3 cp ./eventbridge-lambda.zip s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release_tag_name }}/eventbridge-lambda.zip --acl public-read
+
+      - name: Upload SAM template to S3
+        run: |
+          cp ./cloudformation/sam-template.yaml ./sam-template-${{ matrix.aws_region }}.yaml
+          sed -i "s/<<VERSION>>/${{ github.event.release_tag_name }}/" "./sam-template-${{ matrix.aws_region }}.yaml"
+          sed -i "s/<<REGION>>/${{ matrix.aws_region }}/" "./sam-template-${{ matrix.aws_region }}.yaml"
+          aws s3 cp ./sam-template-${{ matrix.aws_region }}.yaml s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release_tag_name }}/sam-template.yaml --acl public-read
+
       - name: Clean
         run: |
           rm ./sam-template-${{ matrix.aws_region }}.yaml
