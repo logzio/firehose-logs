@@ -128,17 +128,17 @@ jobs:
 
       - name: Upload EventBridge Lambda ZIP to S3
         run: |
-          aws s3 cp ./eventbridge-lambda.zip s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release_tag_name }}/eventbridge-lambda.zip --acl public-read
+          aws s3 cp ./eventbridge-lambda.zip s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release.tag_name }}/eventbridge-lambda.zip --acl public-read
 
       - name: Prepare SAM Template
         run: |
           cp ./cloudformation/sam-template.yaml ./sam-template-${{ matrix.aws_region }}.yaml
-          sed -i "s/<<VERSION>>/${{ github.event.release_tag_name }}/" "./sam-template-${{ matrix.aws_region }}.yaml"
+          sed -i "s/<<VERSION>>/${{ github.event.release.tag_name }}/" "./sam-template-${{ matrix.aws_region }}.yaml"
           sed -i "s/<<REGION>>/${{ matrix.aws_region }}/" "./sam-template-${{ matrix.aws_region }}.yaml"
 
       - name: Upload SAM Template to S3
         run: |
-          aws s3 cp ./sam-template-${{ matrix.aws_region }}.yaml s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release_tag_name }}/sam-template.yaml --acl public-read
+          aws s3 cp ./sam-template-${{ matrix.aws_region }}.yaml s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release.tag_name }}/sam-template.yaml --acl public-read
 
       - name: Clean
         run: |
