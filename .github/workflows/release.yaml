@@ -37,35 +37,32 @@ jobs:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Prepare function environments
-        run: |
-          cp -R common cfn-lambda/ && cp -R common eventbridge-lambda/
-
-      # Build the CloudFormation Lambda function
-      - name: Build CloudFormation Lambda function
         run: |
           cd cfn-lambda
+          cp -R ../common ./common
           GOOS=linux GOARCH=amd64 go build -o bootstrap .
-          zip -r ../cfn-lambda.zip bootstrap
+          zip -r ../cfn-lambda.zip . 
           cd ..
-      - name: Upload Artifact for CloudFormation Lambda
-        uses: actions/upload-artifact@v2
-        with:
-          name: cfn-lambda-zip
-          path: cfn-lambda.zip
 
-      # Build the EventBridge Lambda function
-      - name: Build EventBridge Lambda function
+      - name: Build and Zip EventBridge Lambda function with common dependencies
         run: |
           cd eventbridge-lambda
+          cp -R ../common ./common
           GOOS=linux GOARCH=amd64 go build -o bootstrap .
-          zip -r ../eventbridge-lambda.zip bootstrap
+          zip -r ../eventbridge-lambda.zip . 
           cd ..
-      - name: Upload Artifact for EventBridge Lambda
+
+      - name: Upload CloudFormation Lambda ZIP as Artifact
         uses: actions/upload-artifact@v2
         with:
-          name: eventbridge-lambda-zip
-          path: eventbridge-lambda.zip
+          name: cfn-lambda-with-common-zip
+          path: cfn-lambda-with-common.zip
+
+      - name: Upload EventBridge Lambda ZIP as Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: eventbridge-lambda-with-common-zip
+          path: eventbridge-lambda-with-common.zip
 
       - name: Cleanup common folders
         run: |
@@ -140,11 +137,14 @@ jobs:
         run: |
           aws s3 cp ./eventbridge-lambda.zip s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release_tag_name }}/eventbridge-lambda.zip --acl public-read
 
-      - name: Upload SAM template to S3
+      - name: Prepare SAM Template
         run: |
           cp ./cloudformation/sam-template.yaml ./sam-template-${{ matrix.aws_region }}.yaml
           sed -i "s/<<VERSION>>/${{ github.event.release_tag_name }}/" "./sam-template-${{ matrix.aws_region }}.yaml"
           sed -i "s/<<REGION>>/${{ matrix.aws_region }}/" "./sam-template-${{ matrix.aws_region }}.yaml"
+
+      - name: Upload SAM Template to S3
+        run: |
           aws s3 cp ./sam-template-${{ matrix.aws_region }}.yaml s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release_tag_name }}/sam-template.yaml --acl public-read
 
       - name: Clean
