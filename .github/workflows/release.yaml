@@ -55,14 +55,14 @@ jobs:
       - name: Upload CloudFormation Lambda ZIP as Artifact
         uses: actions/upload-artifact@v2
         with:
-          name: cfn-lambda-with-common-zip
-          path: cfn-lambda-with-common.zip
+          name: cfn-lambda-zip
+          path: cfn-lambda.zip
 
       - name: Upload EventBridge Lambda ZIP as Artifact
         uses: actions/upload-artifact@v2
         with:
-          name: eventbridge-lambda-with-common-zip
-          path: eventbridge-lambda-with-common.zip
+          name: eventbridge-lambda-zip
+          path: eventbridge-lambda.zip
 
       - name: Cleanup common folders
         run: |
