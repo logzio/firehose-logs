@@ -111,17 +111,10 @@ jobs:
       - name: Check out the repo
         uses: actions/checkout@v3
 
-      - name: Download Artifact for CloudFormation Lambda
+      - name: Download Artifacts
         uses: actions/download-artifact@v2
         with:
-          name: cfn-lambda-zip
-          path: .
-
-      - name: Download Artifact for EventBridge Lambda
-        uses: actions/download-artifact@v2
-        with:
-          name: eventbridge-lambda-zip
-          path: .
+          path: ./
 
       - name: Configure AWS CLI
         uses: aws-actions/configure-aws-credentials@v1
