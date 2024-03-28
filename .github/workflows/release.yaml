@@ -46,9 +46,13 @@ jobs:
         run: |
           cd cfn-lambda
           GOOS=linux GOARCH=amd64 go build -o bootstrap .
-          zip -r cfn-lambda.zip bootstrap
-          mv cfn-lambda.zip ../
+          zip -r ../cfn-lambda.zip bootstrap
           cd ..
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: cfn-lambda-zip
+          path: cfn-lambda.zip
 
       # Build the EventBridge Lambda function
       - name: Build EventBridge Lambda function
@@ -120,15 +124,19 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
           aws-region: ${{ matrix.aws_region }}
 
-      - name: Upload CloudFormation Lambda ZIP and SAM templates to S3
+      - name: Download Artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: cfn-lambda-zip
+          path: .
+      - name: Upload CloudFormation Lambda ZIP to S3
         run: |
           if [ -f ./cfn-lambda.zip ]; then
             aws s3 cp ./cfn-lambda.zip s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release.tag_name }}/cfn-lambda.zip --acl public-read
           else
             echo "cfn-lambda.zip not found, skipping upload."
             exit 1
-          fi
-          
+        
           # Upload the EventBridge Lambda ZIP to S3
           if [ -f ./eventbridge-lambda.zip ]; then
             aws s3 cp ./eventbridge-lambda.zip s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release.tag_name }}/eventbridge-lambda.zip --acl public-read
