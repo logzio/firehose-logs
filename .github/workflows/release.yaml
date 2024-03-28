@@ -37,6 +37,7 @@ jobs:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Build CloudFormation Lambda function
         run: |
           cd cfn-lambda
           cp -R ../common ./common
