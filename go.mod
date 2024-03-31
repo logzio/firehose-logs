@@ -1,4 +1,4 @@
-module main
+module github.com/logzio/firehose-logs
 
 go 1.19
 
