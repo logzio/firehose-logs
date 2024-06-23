@@ -31,7 +31,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       AWS_REGION: 'us-east-1'
-      AWS_DEFAULT_REGION: 'us-east-1'  # To avoid 255 issue with AWS CLI v2
       TEST_VERSION: 0.0.7357
     steps:
       # Initialize env
@@ -83,6 +82,7 @@ jobs:
           --template-file ./cloudformation/sam-template.yaml \
           --stack-name auto-test-firehose-log \
           --parameter-overrides logzioToken=${{ secrets.LOGZIO_SHIPPING_TOKEN }} logzioListener=https://aws-firehose-logs-listener.logz.io services=apigateway customLogGroups= 
+          --debug
 
       # Generate test data
       - name: Create, Update and Delete API Gateway service
