@@ -45,7 +45,7 @@ jobs:
 
       # Generate the ZIP files
       - name: Build CloudFormation Lambda function
-        working-directory: ./cfn-lambda.zip
+        working-directory: ./cfn-lambda
         run: |
           cp -R ../common ./common
           GOOS=linux GOARCH=amd64 go build -o bootstrap .
