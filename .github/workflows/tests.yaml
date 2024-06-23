@@ -31,6 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       AWS_REGION: 'us-east-1'
+      AWS_DEFAULT_REGION: 'us-east-1'  # To avoid 255 issue with AWS CLI v2
       TEST_VERSION: 0.0.7357
     steps:
       # Initialize env
