@@ -81,7 +81,8 @@ jobs:
           aws cloudformation deploy \
           --template-file ./cloudformation/sam-template.yaml \
           --stack-name auto-test-firehose-log \
-          --parameter-overrides logzioToken=${{ secrets.LOGZIO_SHIPPING_TOKEN }} logzioListener=https://aws-firehose-logs-listener.logz.io services=apigateway customLogGroups= 
+          --parameter-overrides logzioToken=${{ secrets.LOGZIO_SHIPPING_TOKEN }} logzioListener=https://aws-firehose-logs-listener.logz.io services=apigateway customLogGroups= \
+          --capabilities CAPABILITY_NAMED_IAM \
           --debug
 
       # Generate test data
