@@ -1,0 +1,124 @@
+name: Unit and E2E Tests
+on: [pull_request]
+jobs:
+  # Unit tests
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.22
+      - name: Install dependencies
+        run: |
+          go get -u
+          go mod tidy
+          go install golang.org/x/tools/cmd/cover@v0.1.0
+      - name: Test CFN lambda
+        working-directory: ./cfn-lambda/handler
+        run: go test -v -race -covermode=atomic -coverprofile=coverage.out
+      - name: Test EventBridge lambda
+        working-directory: ./eventbridge-lambda/handler
+        run: go test -v -race -covermode=atomic -coverprofile=coverage.out
+      - name: Test common functions
+        working-directory: ./common
+        run: go test -v -race -covermode=atomic -coverprofile=coverage.out
+
+  # E2E Tests
+  e2e-tests:
+    needs: unit-tests  # Run e2e test only if unit tests passed
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: 'us-east-1'
+      TEST_VERSION: 0.0.7357
+    steps:
+      # Initialize env
+      - uses: actions/checkout@v4
+      - name: Setup Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.22
+      - name: Install dependencies
+        run: |
+          go get -u
+          go mod tidy
+          go install golang.org/x/tools/cmd/cover@v0.1.0
+
+      # Generate the ZIP files
+      - name: Build CloudFormation Lambda function
+        working-directory: ./cfn-lambda.zip
+        run: |
+          cp -R ../common ./common
+          GOOS=linux GOARCH=amd64 go build -o bootstrap .
+          zip -r ../cfn-lambda.zip .
+      - name: Build and Zip EventBridge Lambda function
+        working-directory: ./eventbridge-lambda
+        run: |
+          cp -R ../common ./common
+          GOOS=linux GOARCH=amd64 go build -o bootstrap .
+          zip -r ../eventbridge-lambda.zip .
+
+      # Setup and upload to AWS
+      - name: Setup AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Upload ZIP to S3
+        run: |
+          aws s3 cp ./cfn-lambda.zip s3://logzio-aws-integrations-${{ env.AWS_REGION }}/firehose-logs/${{ env.TEST_VERSION }}/cfn-lambda.zip --acl public-read
+          aws s3 cp ./eventbridge-lambda.zip s3://logzio-aws-integrations-${{ env.AWS_REGION }}/firehose-logs/${{ env.TEST_VERSION }}/eventbridge-lambda.zip --acl public-read
+
+      # Deploy test stack
+      - name: Update sam-template region and version vars
+        working-directory: ./cloudformation
+        run: |
+          grep -rli '<<REGION>>' * | xargs -i@ sed -i 's/<<REGION>>/${{ env.AWS_REGION }}/g' @
+          grep -rli '<<VERSION>>' * | xargs -i@ sed -i 's/<<VERSION>>/${{ env.TEST_VERSION }}/g' @
+      - name: Deploy test stack
+        run: |
+          aws cloudformation deploy \
+          --template-file ./cloudformation/sam-template.yaml \
+          --stack-name auto-test-firehose-log \
+          --parameter-overrides logzioToken=${{ secrets.LOGZIO_SHIPPING_TOKEN }} logzioListener=https://aws-firehose-logs-listener.logz.io services=apigateway
+
+      # Generate test data
+      - name: Create, Update and Delete API Gateway service
+        run: |
+          # Create an API Gateway
+          api_id=$(aws apigateway create-rest-api --name TestAPI --query 'id' --output text)
+          root_id=$(aws apigateway get-resources --rest-api-id $api_id --query 'items[0].id' --output text)
+          resource_id=$(aws apigateway create-resource --rest-api-id $api_id --parent-id $root_id --path-part 'test' --query 'id' --output text)
+          aws apigateway put-method --rest-api-id $api_id --resource-id $resource_id --http-method GET --authorization-type 'NONE'
+          aws apigateway put-integration --rest-api-id $api_id --resource-id $resource_id --http-method GET --type AWS_PROXY --integration-http-method POST --uri arn:aws:apigateway:${{ env.AWS_REGION }}:lambda:path/2015-03-31/functions/arn:aws:lambda:${{ env.AWS_REGION }}:$(aws sts get-caller-identity --query Account --output text):function:TestFunction/invocations
+          aws apigateway create-deployment --rest-api-id $api_id --stage-name test
+
+          # Invoke the API to generate logs
+          curl -X GET https://$api_id.execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/test
+
+          # Update the API Gateway
+          new_resource_id=$(aws apigateway create-resource --rest-api-id $api_id --parent-id $root_id --path-part 'newtest' --query 'id' --output text)
+          aws apigateway put-method --rest-api-id $api_id --resource-id $new_resource_id --http-method POST --authorization-type 'NONE'
+          aws apigateway put-integration --rest-api-id $api_id --resource-id $new_resource_id --http-method POST --type AWS_PROXY --integration-http-method POST --uri arn:aws:apigateway:${{ env.AWS_REGION }}:lambda:path/2015-03-31/functions/arn:aws:lambda:${{ env.AWS_REGION }}:$(aws sts get-caller-identity --query Account --output text):function:TestFunction/invocations
+          aws apigateway create-deployment --rest-api-id $api_id --stage-name test
+
+          # Invoke the API to generate logs
+          curl -X POST https://$api_id.execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/newtest
+
+          # Delete the API Gateway
+          aws apigateway delete-rest-api --rest-api-id $api_id
+
+      # Run tests
+      - name: Run Go Tests
+        working-directory: ./tests
+        env:
+          LOGZIO_API_TOKEN: ${{ secrets.LOGZIO_API_TOKEN }}
+        run: go test -v ./e2e_test.go
+
+      # Cleanup
+      - name: Delete Stack
+        run: |
+          aws cloudformation delete-stack \
+          --stack-name auto-test-firehose-log
