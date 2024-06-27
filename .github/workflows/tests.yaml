@@ -87,30 +87,33 @@ jobs:
           --debug
 
       # Generate test data
-      - name: Create, Update and Delete API Gateway service
+      - name: Create API Gateway service
         run: |
-          # Create an API Gateway
-          api_id=$(aws apigateway create-rest-api --name TestAPI --query 'id' --output text)
-          root_id=$(aws apigateway get-resources --rest-api-id $api_id --query 'items[0].id' --output text)
-          resource_id=$(aws apigateway create-resource --rest-api-id $api_id --parent-id $root_id --path-part 'test' --query 'id' --output text)
-          aws apigateway put-method --rest-api-id $api_id --resource-id $resource_id --http-method GET --authorization-type 'NONE'
-          aws apigateway put-integration --rest-api-id $api_id --resource-id $resource_id --http-method GET --type AWS_PROXY --integration-http-method POST --uri arn:aws:apigateway:${{ env.AWS_REGION }}:lambda:path/2015-03-31/functions/arn:aws:lambda:${{ env.AWS_REGION }}:$(aws sts get-caller-identity --query Account --output text):function:TestFunction/invocations
-          aws apigateway create-deployment --rest-api-id $api_id --stage-name test
+          # Create API
+          api_id=$(aws apigateway create-rest-api --name 'auto-test-firehose-log-api' --description 'Integration test for Firehose logs' --region ${{ env.AWS_REGION }} --query 'id' --output text)
+          
+          # Get the root resource (/ path)
+          resource_id=$(aws apigateway get-resources --rest-api-id $api_id --query 'items[0].id' --output text)
+          
+          # Add GET method
+          aws apigateway put-method --rest-api-id $api_id --resource-id $resource_id --http-method GET --authorization-type "NONE"
+          aws apigateway put-method-response --rest-api-id $api_id --resource-id $resource_id --http-method GET --status-code 200
+          
+          # Add Integration
+          aws apigateway put-integration --rest-api-id $api_id --resource-id $resource_id --http-method GET --type HTTP --integration-http-method GET --uri 'https://httpbin.org/ip'
+          aws apigateway put-integration-response --rest-api-id $api_id --resource-id $resource_id --http-method GET --status-code 200 --selection-pattern ""
+          
+          # Deploy 
+          aws apigateway create-deployment --rest-api-id $api_id --stage-name test --stage-description 'Test stage' --description 'First deployment' --variables "logging=enabled"
 
-          # Invoke the API to generate logs
-          curl -X GET https://$api_id.execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/test
+      - name: Invoke the API to generate logs
+        run: curl -X GET https://$api_id.execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/
 
-          # Update the API Gateway
-          new_resource_id=$(aws apigateway create-resource --rest-api-id $api_id --parent-id $root_id --path-part 'newtest' --query 'id' --output text)
-          aws apigateway put-method --rest-api-id $api_id --resource-id $new_resource_id --http-method POST --authorization-type 'NONE'
-          aws apigateway put-integration --rest-api-id $api_id --resource-id $new_resource_id --http-method POST --type AWS_PROXY --integration-http-method POST --uri arn:aws:apigateway:${{ env.AWS_REGION }}:lambda:path/2015-03-31/functions/arn:aws:lambda:${{ env.AWS_REGION }}:$(aws sts get-caller-identity --query Account --output text):function:TestFunction/invocations
-          aws apigateway create-deployment --rest-api-id $api_id --stage-name test
+      - name: Delete the API Gateway
+        run: aws apigateway delete-rest-api --rest-api-id $api_id
 
-          # Invoke the API to generate logs
-          curl -X POST https://$api_id.execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/newtest
-
-          # Delete the API Gateway
-          aws apigateway delete-rest-api --rest-api-id $api_id
+      - name: Wait to allow data to get to logzio
+        run: sleep 30
 
       # Run tests
       - name: Run Go Tests
