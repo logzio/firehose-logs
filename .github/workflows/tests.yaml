@@ -49,14 +49,14 @@ jobs:
         working-directory: ./cfn-lambda
         run: |
           cp -R ../common ./common
-          GOOS=linux GOARCH=amd64 go build -o bootstrap .
-          zip -r ../cfn-lambda.zip .
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bootstrap .
+          zip -x "*_test.go" -r ../cfn-lambda.zip .
       - name: Build and Zip EventBridge Lambda function
         working-directory: ./eventbridge-lambda
         run: |
           cp -R ../common ./common
-          GOOS=linux GOARCH=amd64 go build -o bootstrap .
-          zip -r ../eventbridge-lambda.zip .
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bootstrap .
+          zip -x "*_test.go" -r ../eventbridge-lambda.zip .
 
       # Setup and upload to AWS
       - name: Setup AWS
