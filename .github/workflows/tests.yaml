@@ -88,6 +88,7 @@ jobs:
 
       # Generate test data
       - name: Create API Gateway service
+        id: create_api
         run: |
           # Create API
           api_id=$(aws apigateway create-rest-api --name 'auto-test-firehose-log-api' --description 'Integration test for Firehose logs' --region ${{ env.AWS_REGION }} --query 'id' --output text)
@@ -100,17 +101,20 @@ jobs:
           aws apigateway put-method-response --rest-api-id $api_id --resource-id $resource_id --http-method GET --status-code 200
           
           # Add Integration
-          aws apigateway put-integration --rest-api-id $api_id --resource-id $resource_id --http-method GET --type HTTP --integration-http-method GET --uri 'https://httpbin.org/ip'
+          aws apigateway put-integration --rest-api-id $api_id --resource-id $resource_id --http-method GET --type MOCK
           aws apigateway put-integration-response --rest-api-id $api_id --resource-id $resource_id --http-method GET --status-code 200 --selection-pattern ""
           
           # Deploy 
           aws apigateway create-deployment --rest-api-id $api_id --stage-name test --stage-description 'Test stage' --description 'First deployment' --variables "logging=enabled"
+          
+          # Keep the $api_id for next steps
+          echo "::set-output name=api_id::$api_id"
 
       - name: Invoke the API to generate logs
-        run: curl -X GET https://$api_id.execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/
+        run: curl -X GET https://$(echo ${{ steps.create_api.outputs.api_id }}).execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/
 
       - name: Delete the API Gateway
-        run: aws apigateway delete-rest-api --rest-api-id $api_id
+        run: aws apigateway delete-rest-api --rest-api-id $(echo ${{ steps.create_api.outputs.api_id }})
 
       - name: Wait to allow data to get to logzio
         run: sleep 30
