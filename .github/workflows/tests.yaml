@@ -70,22 +70,6 @@ jobs:
           aws s3 cp ./cfn-lambda.zip s3://logzio-aws-integrations-${{ env.AWS_REGION }}/firehose-logs/${{ env.TEST_VERSION }}/cfn-lambda.zip --acl public-read
           aws s3 cp ./eventbridge-lambda.zip s3://logzio-aws-integrations-${{ env.AWS_REGION }}/firehose-logs/${{ env.TEST_VERSION }}/eventbridge-lambda.zip --acl public-read
 
-      # Deploy test stack
-      - name: Update sam-template region and version vars
-        working-directory: ./cloudformation
-        run: |
-          grep -rli '<<REGION>>' * | xargs -i@ sed -i 's/<<REGION>>/${{ env.AWS_REGION }}/g' @
-          grep -rli '<<VERSION>>' * | xargs -i@ sed -i 's/<<VERSION>>/${{ env.TEST_VERSION }}/g' @
-      - name: Deploy test stack
-        run: |
-          aws cloudformation deploy \
-          --template-file ./cloudformation/sam-template.yaml \
-          --stack-name auto-test-firehose-log \
-          --parameter-overrides logzioToken=${{ secrets.LOGZIO_SHIPPING_TOKEN }} logzioListener=https://aws-firehose-logs-listener.logz.io services=apigateway customLogGroups= \
-          --capabilities CAPABILITY_NAMED_IAM \
-          --disable-rollback \
-          --debug
-
       # Generate test data
       - name: Create API Gateway service
         id: create_api
@@ -112,6 +96,22 @@ jobs:
           
           # Keep the $api_id for next steps
           echo "::set-output name=api_id::$api_id"
+
+      # Deploy test stack
+      - name: Update sam-template region and version vars
+        working-directory: ./cloudformation
+        run: |
+          grep -rli '<<REGION>>' * | xargs -i@ sed -i 's/<<REGION>>/${{ env.AWS_REGION }}/g' @
+          grep -rli '<<VERSION>>' * | xargs -i@ sed -i 's/<<VERSION>>/${{ env.TEST_VERSION }}/g' @
+      - name: Deploy test stack
+        run: |
+          aws cloudformation deploy \
+          --template-file ./cloudformation/sam-template.yaml \
+          --stack-name auto-test-firehose-log \
+          --parameter-overrides logzioToken=${{ secrets.LOGZIO_SHIPPING_TOKEN }} logzioListener=https://aws-firehose-logs-listener.logz.io services=apigateway customLogGroups=API-Gateway-Execution-Logs_$api_id/test \
+          --capabilities CAPABILITY_NAMED_IAM \
+          --disable-rollback \
+          --debug
 
       - name: Invoke the API to generate logs
         run: curl -X GET https://$(echo ${{ steps.create_api.outputs.api_id }}).execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/
