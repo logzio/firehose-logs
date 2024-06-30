@@ -101,11 +101,14 @@ jobs:
           aws apigateway put-method-response --rest-api-id $api_id --resource-id $resource_id --http-method GET --status-code 200
           
           # Add Integration
-          aws apigateway put-integration --rest-api-id $api_id --resource-id $resource_id --http-method GET --type MOCK
-          aws apigateway put-integration-response --rest-api-id $api_id --resource-id $resource_id --http-method GET --status-code 200 --selection-pattern ""
+          aws apigateway put-integration --rest-api-id $api_id --resource-id $resource_id --http-method GET --type MOCK --request-templates '{ "application/json": "{\"statusCode\": 200}" }'
+          aws apigateway put-integration-response --rest-api-id $api_id --resource-id $resource_id --http-method GET --status-code 200 --selection-pattern "" --response-templates '{"application/json": "{\"statusCode\": 200, \"message\": \"Test msg\"}"}'
           
           # Deploy 
-          aws apigateway create-deployment --rest-api-id $api_id --stage-name test --stage-description 'Test stage' --description 'First deployment' --variables "logging=enabled"
+          aws apigateway create-deployment --rest-api-id $api_id --stage-name test --stage-description 'Test stage' --description 'First deployment'
+          
+          # Enable Cloudwatch logging
+          aws apigateway update-stage --rest-api-id $api_id --stage-name 'test' --patch-operations 'op=replace,path=/*/*/logging/loglevel,value=INFO'
           
           # Keep the $api_id for next steps
           echo "::set-output name=api_id::$api_id"
