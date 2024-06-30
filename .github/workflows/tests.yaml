@@ -97,6 +97,9 @@ jobs:
           # Keep the $api_id for next steps
           echo "::set-output name=api_id::$api_id"
 
+      - name: Invoke the API to generate log group
+        run: curl -X GET https://$(echo ${{ steps.create_api.outputs.api_id }}).execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/
+
       # Deploy test stack
       - name: Update sam-template region and version vars
         working-directory: ./cloudformation
@@ -120,7 +123,7 @@ jobs:
         run: aws apigateway delete-rest-api --rest-api-id $(echo ${{ steps.create_api.outputs.api_id }})
 
       - name: Wait to allow data to get to logzio
-        run: sleep 30
+        run: sleep 60
 
       # Run tests
       - name: Run Go Tests
