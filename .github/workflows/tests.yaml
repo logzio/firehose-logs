@@ -112,6 +112,7 @@ jobs:
           grep -rli '<<REGION>>' * | xargs -i@ sed -i 's/<<REGION>>/${{ env.AWS_REGION }}/g' @
           grep -rli '<<VERSION>>' * | xargs -i@ sed -i 's/<<VERSION>>/${{ env.TEST_VERSION }}/g' @
       - name: Deploy test stack
+        id: create_stack
         run: |
           aws cloudformation deploy \
           --template-file ./cloudformation/sam-template.yaml \
@@ -136,16 +137,17 @@ jobs:
 
       # Update stack to test using secret for customLogGroups
       - name: Create a secret with custom log group
+        id: create_secret
         run: |
           aws secretsmanager create-secret \
-          --name auto-test-firehose-log-api \
+          --name auto-test-firehose-log-api-secret \
           --secret-string "{\"logzioCustomLogGroups\":\"API-Gateway-Execution-Logs_$(echo ${{ steps.create_api.outputs.api_id }})/test\"}"
 
       - name: Update Stack to use customLogGroups from secret
         run: |
           aws cloudformation update-stack \
           --stack-name auto-test-firehose-log \
-          --use-previous-template --parameters ParameterKey=customLogGroups,ParameterValue=logzioCustomLogGroups ParameterKey=useCustomLogGroupsFromSecret,ParameterValue=true ParameterKey=logzioType,ParameterValue=logzio_firehose_test2 ParameterKey=logzioToken,UsePreviousValue=true ParameterKey=logzioListener,UsePreviousValue=true ParameterKey=services,UsePreviousValue=true
+          --use-previous-template --parameters ParameterKey=customLogGroups,ParameterValue=auto-test-firehose-log-api-secret ParameterKey=useCustomLogGroupsFromSecret,ParameterValue=true ParameterKey=logzioType,ParameterValue=logzio_firehose_test2 ParameterKey=logzioToken,UsePreviousValue=true ParameterKey=logzioListener,UsePreviousValue=true ParameterKey=services,UsePreviousValue=true
 
       - name: Invoke the API to generate logs
         run: curl -X GET https://$(echo ${{ steps.create_api.outputs.api_id }}).execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/
@@ -165,8 +167,12 @@ jobs:
         if: steps.create_api.outcome == 'success'
         run: aws apigateway delete-rest-api --rest-api-id $(echo ${{ steps.create_api.outputs.api_id }})
 
+      - name: Delete Secret
+        if: steps.create_secret.outcome == 'success'
+        run: aws secretsmanager delete-secret --secret-id auto-test-firehose-log-api-secret --force-delete-without-recovery
+
       - name: Delete Stack
-        if: always()
+        if: steps.create_stack.outcome == 'success'
         run: |
           aws cloudformation delete-stack \
           --stack-name auto-test-firehose-log
