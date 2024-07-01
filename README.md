@@ -75,7 +75,7 @@ Specify the stack details as per the table below, check the checkboxes and selec
 #### Custom Log Group list exceeds 4096 characters limit
 If your `customLogGroups` list exceeds the 4096 characters limit, follow the below steps:
 
-1. Open AWS [Secret Manager](https://us-east-1.console.aws.amazon.com/secretsmanager/listsecrets?region=us-east-1)
+1. Open AWS [Secret Manager](https://console.aws.amazon.com/secretsmanager/)
 2. Click `Store a new secret`
 3. Name your secret, for example as `LogzioCustomLogGroups`
 4. In your stack, Set: 

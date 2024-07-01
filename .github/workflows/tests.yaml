@@ -124,9 +124,6 @@ jobs:
       - name: Invoke the API to generate logs
         run: curl -X GET https://$(echo ${{ steps.create_api.outputs.api_id }}).execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/
 
-      - name: Delete the API Gateway
-        run: aws apigateway delete-rest-api --rest-api-id $(echo ${{ steps.create_api.outputs.api_id }})
-
       - name: Wait to allow data to get to logzio
         run: sleep 60
 
@@ -153,6 +150,9 @@ jobs:
       - name: Invoke the API to generate logs
         run: curl -X GET https://$(echo ${{ steps.create_api.outputs.api_id }}).execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/
 
+      - name: Wait to allow data to get to logzio
+        run: sleep 60
+
       # Run tests
       - name: Run Go Tests
         working-directory: ./tests
@@ -161,6 +161,10 @@ jobs:
         run: go test -v ./e2e_test.go -args -logType=logzio_firehose_test2
 
       # Cleanup
+      - name: Delete the API Gateway
+        if: steps.create_api.outcome == 'success'
+        run: aws apigateway delete-rest-api --rest-api-id $(echo ${{ steps.create_api.outputs.api_id }})
+
       - name: Delete Stack
         if: always()
         run: |
