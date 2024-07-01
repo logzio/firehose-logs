@@ -3,6 +3,7 @@ package tests
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
@@ -14,6 +15,7 @@ import (
 )
 
 var logger, _ = zap.NewProduction()
+var logType string
 
 type LogResponse struct {
 	Hits struct {
@@ -25,6 +27,17 @@ type LogResponse struct {
 			} `json:"_source"`
 		} `json:"hits"`
 	} `json:"hits"`
+}
+
+func TestMain(m *testing.M) {
+	// Get log type to search for
+	flag.StringVar(&logType, "logType", "logzio_firehose", "log type to search for in logzio")
+	flag.Parse()
+
+	// Run the tests
+	exitVal := m.Run()
+
+	os.Exit(exitVal)
 }
 
 func TestNeededDataGotToLogzio(t *testing.T) {
@@ -51,13 +64,13 @@ func TestNeededDataGotToLogzio(t *testing.T) {
 func fetchLogs(logsApiToken string) (*LogResponse, error) {
 	url := "https://api.logz.io/v1/search"
 	client := &http.Client{}
-	query := `{
+	query := fmt.Sprintf(`{
 		"query": {
 			"query_string": {
-				"query": "type:logzio_firehose"
+				"query": "type:%s"
 			}
 		}
-	}`
+	}`, logType)
 
 	logger.Info("sending api request", zap.String("url", url), zap.String("query", query))
 	req, err := http.NewRequest("POST", url, bytes.NewBufferString(query))

@@ -137,6 +137,29 @@ jobs:
           LOGZIO_API_TOKEN: ${{ secrets.LOGZIO_API_TOKEN }}
         run: go test -v ./e2e_test.go
 
+      # Update stack to test using secret for customLogGroups
+      - name: Create a secret with custom log group
+        run: |
+          aws secretsmanager create-secret \
+          --name auto-test-firehose-log-api \
+          --secret-string "{\"logzioCustomLogGroups\":\"API-Gateway-Execution-Logs_$(echo ${{ steps.create_api.outputs.api_id }})/test\"}"
+
+      - name: Update Stack to use customLogGroups from secret
+        run: |
+          aws cloudformation update-stack \
+          --stack-name auto-test-firehose-log \
+          --use-previous-template --parameters ParameterKey=customLogGroups,ParameterValue=logzioCustomLogGroups ParameterKey=useCustomLogGroupsFromSecret,ParameterValue=true ParameterKey=logzioType,ParameterValue=logzio_firehose_test2 ParameterKey=logzioToken,UsePreviousValue=true ParameterKey=logzioListener,UsePreviousValue=true ParameterKey=services,UsePreviousValue=true
+
+      - name: Invoke the API to generate logs
+        run: curl -X GET https://$(echo ${{ steps.create_api.outputs.api_id }}).execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/
+
+      # Run tests
+      - name: Run Go Tests
+        working-directory: ./tests
+        env:
+          LOGZIO_API_TOKEN: ${{ secrets.LOGZIO_API_TOKEN }}
+        run: go test -v ./e2e_test.go -args -logType=logzio_firehose_test2
+
       # Cleanup
       - name: Delete Stack
         if: always()
