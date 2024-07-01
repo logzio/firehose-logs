@@ -1,5 +1,10 @@
 name: Unit and E2E Tests
-on: [pull_request]
+on:
+  pull_request:
+  schedule:
+    # Run once a week on Sunday
+    - cron: "0 7 * * 0"
+
 jobs:
 
 #### Unit tests ####
@@ -31,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       AWS_REGION: 'us-east-1'
-      TEST_VERSION: 0.0.7357
+      TEST_VERSION: test
     steps:
       # Initialize env
       - uses: actions/checkout@v4
@@ -134,6 +139,7 @@ jobs:
 
       # Cleanup
       - name: Delete Stack
+        if: always()
         run: |
           aws cloudformation delete-stack \
           --stack-name auto-test-firehose-log
