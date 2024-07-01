@@ -55,7 +55,8 @@ Specify the stack details as per the table below, check the checkboxes and selec
 | `logzioListener`                           | Listener host.                                                                                                                                                                                                                                           | **Required**      |
 | `logzioType`                               | The log type you'll use with this Lambda. This can be a [built-in log type](https://docs.logz.io/user-guide/log-shipping/built-in-log-types.html), or a custom log type.                                                                                 | `logzio_firehose` |
 | `services`                                 | A comma-seperated list of services you want to collect logs from. Supported options are: `apigateway`, `rds`, `cloudhsm`, `cloudtrail`, `codebuild`, `connect`, `elasticbeanstalk`, `ecs`, `eks`, `aws-glue`, `aws-iot`, `lambda`, `macie`, `amazon-mq`. | -                 |
-| `customLogGroups`                          | A comma-seperated list of custom log groups you want to collect logs from                                                                                                                                                                                | -                 |
+| `customLogGroups`                          | A comma-separated list of custom log groups to collect logs from, or the name of the Secret parameter ([explanation below](#custom-log-group-list-exceeds-4096-characters-limit)) storing the log groups list if it exceeds 4096 characters.             | -                 |
+| `useCustomLogGroupsFromSecret`             | If you want to provide list of `customLogGroups` which exceeds 4096 characters, set to `true` and configure your customLogGroups as [defined below](#custom-log-group-list-exceeds-4096-characters-limit).                                               | `false`           |
 | `triggerLambdaTimeout`                     | The amount of seconds that Lambda allows a function to run before stopping it, for the trigger function.                                                                                                                                                 | `60`              |
 | `triggerLambdaMemory`                      | Trigger function's allocated CPU proportional to the memory configured, in MB.                                                                                                                                                                           | `512`             |
 | `triggerLambdaLogLevel`                    | Log level for the Lambda function. Can be one of: `debug`, `info`, `warn`, `error`, `fatal`, `panic`                                                                                                                                                     | `info`            |
@@ -63,9 +64,25 @@ Specify the stack details as per the table below, check the checkboxes and selec
 | `httpEndpointDestinationSizeInMBs`         | The size of the buffer, in MBs, that Kinesis Data Firehose uses for incoming data before delivering it to the destination                                                                                                                                | `5`               |
 
 
-#### ⚠️ Important note ⚠️
+> #### ⚠️ Important note ⚠️
+> AWS limits every log group to have up to 2 subscription filters. If your chosen log group already has 2 subscription filters, the trigger function won't be able to add another one.
 
-AWS limits every log group to have up to 2 subscription filters. If your chosen log group already has 2 subscription filters, the trigger function won't be able to add another one.
+<details>
+  <summary>
+    <h4>Guide if customLogGroups list exceeds 4096 characters limit</h4>
+  </summary>
+
+#### Custom Log Group list exceeds 4096 characters limit
+If your `customLogGroups` list exceeds the 4096 characters limit, follow the below steps:
+
+1. Open AWS [Secret Manager](https://us-east-1.console.aws.amazon.com/secretsmanager/listsecrets?region=us-east-1)
+2. Click `Store a new secret`
+3. Name your secret, for example as `LogzioCustomLogGroups`
+4. In your stack, Set: 
+  - `customLogGroups` to `LogzioCustomLogGroups` (or your custom secret name)
+  - `useCustomLogGroupsFromSecret` to `true`
+
+</details>
 
 ### 2. Send logs
 
@@ -73,11 +90,11 @@ Give the stack a few minutes to be deployed.
 
 Once new logs are added to your chosen log group, they will be sent to your Logz.io account.
 
-##### ⚠️ Important note ⚠️
-
-If you've used the `services` field, you'll have to **wait 6 minutes** before creating new log groups for your chosen services. This is due to cold start and custom resource invocation, that can cause the Lambda to behave unexpectedly.
+> ##### ⚠️ Important note ⚠️
+> If you've used the `services` field, you'll have to **wait 6 minutes** before creating new log groups for your chosen services. This is due to cold start and custom resource invocation, that can cause the Lambda to behave unexpectedly.
 
 ### Changelog:
+- **0.2.0**: Option to provide `customLogGroups` exceeding 4KB.
 - **0.1.0**:
   Introduced the ability to directly update service and custom log parameters within the stack.
 - **0.0.2**: Fix for RDS service - look for prefix `/aws/rds/`

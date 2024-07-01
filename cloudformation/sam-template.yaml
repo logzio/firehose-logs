@@ -30,7 +30,12 @@ Parameters:
     Description: A comma-seperated list of services you want to collect logs from
   customLogGroups:
     Type: String
-    Description: A comma-seperated list of custom log groups you want to collect logs from
+    Description: A comma-separated list of custom log groups to collect logs from, or the name of the secret parameter storing the log groups list if it exceeds 4096 characters.
+  useCustomLogGroupsFromSecret:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "false"
+    Description: Set to 'true' if your customLogGroups exceed the allowed 4096 characters limitation.
   triggerLambdaTimeout:
     Type: Number
     Description: >-

@@ -6,10 +6,17 @@ import (
 	"github.com/aws/aws-lambda-go/cfn"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
+	"github.com/aws/aws-secretsmanager-caching-go/secretcache"
 	"github.com/logzio/firehose-logs/common"
 	lp "github.com/logzio/firehose-logs/logger"
 	"go.uber.org/zap"
 	"os"
+)
+
+const (
+	secretEnabledKey   = "useCustomLogGroupsFromSecret"
+	customLogGroupsKey = "CustomLogGroups"
+	servicesKey        = "Services"
 )
 
 var sugLog *zap.SugaredLogger
@@ -68,6 +75,25 @@ func customResourceRunUpdate(ctx context.Context, event cfn.Event) (physicalReso
 	return physicalResourceID, data, nil
 }
 
+func getCustomLogGroups(secretEnabled, customLogGroupsPrmVal string) (string, error) {
+	if secretEnabled == "true" {
+		sugLog.Debug("Attempting to get custom log groups from secret parameter: ", customLogGroupsPrmVal)
+		secretCache, err := secretcache.New()
+		if err != nil {
+			return "", err
+		}
+
+		result, err := secretCache.GetSecretString(customLogGroupsPrmVal)
+		if err != nil {
+			return "", err
+		}
+
+		return result, nil
+	}
+
+	return customLogGroupsPrmVal, nil
+}
+
 func updateConfiguration(ctx context.Context, oldConfig, newConfig map[string]interface{}) error {
 	sess, err := common.GetSession()
 	if err != nil {
@@ -91,19 +117,36 @@ func updateConfiguration(ctx context.Context, oldConfig, newConfig map[string]in
 	}
 
 	// Extract and validate services and custom log group strings from the configurations
-	oldServicesStr, err := extractConfigString(oldConfig, "Services")
+	oldServicesStr, err := extractConfigString(oldConfig, servicesKey)
 	if err != nil {
 		return err
 	}
-	newServicesStr, err := extractConfigString(newConfig, "Services")
+	newServicesStr, err := extractConfigString(newConfig, servicesKey)
 	if err != nil {
 		return err
 	}
-	oldCustomGroupsStr, err := extractConfigString(oldConfig, "CustomLogGroups")
+	oldCustomGroupsStr, err := extractConfigString(oldConfig, customLogGroupsKey)
 	if err != nil {
 		return err
 	}
-	newCustomGroupsStr, err := extractConfigString(newConfig, "CustomLogGroups")
+	oldSecretEnabledStr, err := extractConfigString(oldConfig, secretEnabledKey)
+	if err != nil {
+		return err
+	}
+	newCustomGroupsStr, err := extractConfigString(newConfig, customLogGroupsKey)
+	if err != nil {
+		return err
+	}
+	newSecretEnabledStr, err := extractConfigString(newConfig, secretEnabledKey)
+	if err != nil {
+		return err
+	}
+
+	oldCustomGroupsStr, err = getCustomLogGroups(oldCustomGroupsStr, oldSecretEnabledStr)
+	if err != nil {
+		return err
+	}
+	newCustomGroupsStr, err = getCustomLogGroups(newCustomGroupsStr, newSecretEnabledStr)
 	if err != nil {
 		return err
 	}

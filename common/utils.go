@@ -7,7 +7,7 @@ import (
 
 const (
 	envServices                  = "SERVICES"
-	envAwsRegion                 = "AWS_REGION"               // reserved env
+	EnvAwsRegion                 = "AWS_REGION"               // reserved env
 	EnvFunctionName              = "AWS_LAMBDA_FUNCTION_NAME" // reserved env
 	envFirehoseArn               = "FIREHOSE_ARN"
 	envAccountId                 = "ACCOUNT_ID"
