@@ -119,8 +119,7 @@ jobs:
           --stack-name auto-test-firehose-log \
           --parameter-overrides logzioToken=${{ secrets.LOGZIO_SHIPPING_TOKEN }} logzioListener=https://aws-firehose-logs-listener.logz.io services=apigateway customLogGroups=API-Gateway-Execution-Logs_$(echo ${{ steps.create_api.outputs.api_id }})/test \
           --capabilities CAPABILITY_NAMED_IAM \
-          --disable-rollback \
-          --debug
+          --disable-rollback
 
       - name: Invoke the API to generate logs
         run: curl -X GET https://$(echo ${{ steps.create_api.outputs.api_id }}).execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/
@@ -147,6 +146,7 @@ jobs:
         run: |
           aws cloudformation update-stack \
           --stack-name auto-test-firehose-log \
+          --capabilities CAPABILITY_NAMED_IAM \
           --use-previous-template --parameters ParameterKey=customLogGroups,ParameterValue=auto-test-firehose-log-api-secret ParameterKey=useCustomLogGroupsFromSecret,ParameterValue=true ParameterKey=logzioType,ParameterValue=logzio_firehose_test2 ParameterKey=logzioToken,UsePreviousValue=true ParameterKey=logzioListener,UsePreviousValue=true ParameterKey=services,UsePreviousValue=true
 
       - name: Invoke the API to generate logs
@@ -164,15 +164,15 @@ jobs:
 
       # Cleanup
       - name: Delete the API Gateway
-        if: steps.create_api.outcome == 'success'
+        if: ${{ always() && steps.create_api.outcome == 'success' }}
         run: aws apigateway delete-rest-api --rest-api-id $(echo ${{ steps.create_api.outputs.api_id }})
 
       - name: Delete Secret
-        if: steps.create_secret.outcome == 'success'
+        if: ${{ always() && steps.create_secret.outcome == 'success' }}
         run: aws secretsmanager delete-secret --secret-id auto-test-firehose-log-api-secret --force-delete-without-recovery
 
       - name: Delete Stack
-        if: steps.create_stack.outcome == 'success'
+        if: ${{ always() && steps.create_stack.outcome == 'success' }}
         run: |
           aws cloudformation delete-stack \
           --stack-name auto-test-firehose-log
