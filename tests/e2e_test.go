@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -18,7 +20,8 @@ type LogResponse struct {
 		Total int `json:"total"`
 		Hits  []struct {
 			Source struct {
-				LogType string `json:"type"`
+				LogType  string `json:"type"`
+				LogGroup string `json:"logGroup"`
 			} `json:"_source"`
 		} `json:"hits"`
 	} `json:"hits"`
@@ -38,7 +41,11 @@ func TestNeededDataGotToLogzio(t *testing.T) {
 		t.Errorf("No logs found")
 	}
 
-	/* To add extra checks here */
+	possibleLogGroups := []string{"API-Gateway-Execution-Logs_", "/aws/apigateway/welcome"}
+	for _, hit := range logzioLogs.Hits.Hits {
+		assert.True(t, containsAny(hit.Source.LogGroup, possibleLogGroups))
+	}
+
 }
 
 func fetchLogs(logsApiToken string) (*LogResponse, error) {
@@ -83,4 +90,13 @@ func fetchLogs(logsApiToken string) (*LogResponse, error) {
 	}
 
 	return &logResponse, nil
+}
+
+func containsAny(s string, subStrings []string) bool {
+	for _, subStr := range subStrings {
+		if strings.Contains(s, subStr) {
+			return true
+		}
+	}
+	return false
 }
