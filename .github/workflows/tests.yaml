@@ -149,6 +149,9 @@ jobs:
           --capabilities CAPABILITY_NAMED_IAM \
           --use-previous-template --parameters ParameterKey=customLogGroups,ParameterValue=auto-test-firehose-log-secret-$(echo ${{ steps.create_api.outputs.api_id }}) ParameterKey=useCustomLogGroupsFromSecret,ParameterValue=true ParameterKey=logzioType,ParameterValue=logzio_firehose_test2 ParameterKey=logzioToken,UsePreviousValue=true ParameterKey=logzioListener,UsePreviousValue=true ParameterKey=services,UsePreviousValue=true
 
+      - name: Wait for stack to finish updating
+        run: aws cloudformation wait stack-update-complete --stack-name auto-test-firehose-log
+
       - name: Invoke the API to generate logs
         run: curl -X GET https://$(echo ${{ steps.create_api.outputs.api_id }}).execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/
 
