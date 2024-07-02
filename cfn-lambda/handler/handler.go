@@ -52,6 +52,7 @@ func HandleRequest(ctx context.Context, event cfn.Event) (physicalResourceID str
 func generatePhysicalResourceId(event cfn.Event) string {
 	// Concatenate StackId and LogicalResourceId to form a unique PhysicalResourceId
 	physicalResourceId := fmt.Sprintf("%s-%s", event.StackID, event.LogicalResourceID)
+	sugLog.Debug("Generated physicalId with value: ", physicalResourceId)
 	return physicalResourceId
 }
 

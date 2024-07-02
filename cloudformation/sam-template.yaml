@@ -75,6 +75,7 @@ Conditions:
     - "true"
 
 Resources:
+  # The lambda functions
   CfnLambdaFunction:
     Type: 'AWS::Lambda::Function'
     DependsOn: logzioFirehose
@@ -124,28 +125,8 @@ Resources:
           FIREHOSE_ARN: !GetAtt logzioFirehose.Arn
           LOG_LEVEL: !Ref triggerLambdaLogLevel
           PUT_SF_ROLE: !GetAtt firehosePutSubscriptionFilterRole.Arn
-  LogGroupCreationEventRule:
-    Type: 'AWS::Events::Rule'
-    Properties:
-      EventPattern:
-        source:
-          - 'aws.logs'
-        detail-type:
-          - 'AWS API Call via CloudTrail'
-        detail:
-          eventName:
-            - 'CreateLogGroup'
-      State: ENABLED
-      Targets:
-        - Arn: !GetAtt EventBridgeLambdaFunction.Arn
-          Id: 'EventBridgeLambdaFunctionTarget'
-  PermissionForEventBridgeToInvokeLambda:
-    Type: 'AWS::Lambda::Permission'
-    Properties:
-      Action: 'lambda:InvokeFunction'
-      FunctionName: !GetAtt EventBridgeLambdaFunction.Arn
-      Principal: 'events.amazonaws.com'
-      SourceArn: !GetAtt LogGroupCreationEventRule.Arn
+
+  # Lambda permissions for log groups and using firehose
   lambdaExecutionRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -183,6 +164,8 @@ Resources:
                 Action:
                   - 'iam:PassRole'
                 Resource: !GetAtt firehosePutSubscriptionFilterRole.Arn
+
+  # Triggering events
   triggerPrimerInvoke:
     Type: AWS::CloudFormation::CustomResource
     DependsOn: CfnLambdaFunction
@@ -192,6 +175,7 @@ Resources:
       Services: !Ref services
       CustomLogGroups: !Ref customLogGroups
       SecretEnabled: !Ref useCustomLogGroupsFromSecret
+
   logGroupCreationEvent:
     Condition: createEventbridgeTrigger
     Type: AWS::Events::Rule
@@ -212,6 +196,29 @@ Resources:
       Targets:
         - Arn: !GetAtt EventBridgeLambdaFunction.Arn
           Id: 'EventBridgeLambdaFunctionTarget'
+
+  secretChangeEvent:
+    Condition: secretChangeEventsEnabled
+    Type: 'AWS::Events::Rule'
+    Properties:
+      Description: 'This event is triggered by change in the secret where the custom log groups are saved (if used a secret)'
+      EventPattern:
+        source:
+          - 'secretsmanager.amazonaws.com'
+        detail-type:
+          - 'AWS API Call via CloudTrail'
+        detail:
+          eventName:
+            - 'PutSecretValue'
+          requestParameters:
+            secretId:
+              - !Ref customLogGroups
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt CfnLambdaFunction.Arn
+          Id: 'SecretChangeLambdaTarget'
+
+  # Permissions to trigger events
   permissionForEventsToInvokeLambda:
     Condition: createEventbridgeTrigger
     Type: AWS::Lambda::Permission
@@ -220,6 +227,17 @@ Resources:
       Action: 'lambda:InvokeFunction'
       Principal: 'events.amazonaws.com'
       SourceArn: !GetAtt logGroupCreationEvent.Arn
+
+  PermissionForSecretChangeEventToInvokeLambda:
+    Condition: secretChangeEventsEnabled
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref CfnLambdaFunction
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt secretChangeEvent.Arn
+
+  # Firehose and S3 Resources
   logzioFirehose:
     Type: AWS::KinesisFirehose::DeliveryStream
     Properties:
@@ -350,29 +368,3 @@ Resources:
                   - 'firehose:DescribeDeliveryStream'
                   - 'firehose:PutRecord'
                 Resource: !GetAtt logzioFirehose.Arn
-  SecretChangeEventRule:
-    Condition: secretChangeEventsEnabled
-    Type: 'AWS::Events::Rule'
-    Properties:
-      EventPattern:
-        source:
-          - aws.secretmanager
-        detail-type:
-          - 'AWS API Call via CloudTrail'
-        detail:
-          eventName:
-            - 'UpdatedSecret'
-          requestParameters:
-            secretId:
-              - !Ref customLogGroups
-      Targets:
-        - Arn: !GetAtt CfnLambdaFunction.Arn
-          Id: 'SecretChangeLambdaTarget'
-  PermissionForSecretChangeEventToInvokeLambda:
-    Condition: secretChangeEventsEnabled
-    Type: 'AWS::Lambda::Permission'
-    Properties:
-      Action: 'lambda:InvokeFunction'
-      FunctionName: !GetAtt CfnLambdaFunction.Arn
-      Principal: 'events.amazonaws.com'
-      SourceArn: !GetAtt SecretChangeEventRule.Arn
