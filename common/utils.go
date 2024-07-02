@@ -78,6 +78,7 @@ func GetCustomPaths() []string {
 		return nil
 	}
 
+	sugLog.Debug("Getting custom log groups with information; secret enabled: ", secretEnabled)
 	customLogGroupsStr, err := GetCustomLogGroups(secretEnabled, pathsStr)
 	if err != nil {
 		sugLog.Errorf("Failed to get custom log groups from secret due to %s", err.Error())
