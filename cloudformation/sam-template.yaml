@@ -70,6 +70,9 @@ Conditions:
     - !Equals
       - !Ref services
       - ''
+  secretChangeEventsEnabled: !Equals
+    - !ref useCustomLogGroupsFromSecret
+    - "true"
 
 Resources:
   CfnLambdaFunction:
@@ -90,6 +93,7 @@ Resources:
         Variables:
           SERVICES: !Ref services
           CUSTOM_GROUPS: !Ref customLogGroups
+          SECRET_ENABLED: !Ref useCustomLogGroupsFromSecret
           ACCOUNT_ID: !Ref AWS::AccountId
           AWS_PARTITION: !Ref AWS::Partition
           FIREHOSE_ARN: !GetAtt logzioFirehose.Arn
@@ -114,6 +118,7 @@ Resources:
         Variables:
           SERVICES: !Ref services
           CUSTOM_GROUPS: !Ref customLogGroups
+          SECRET_ENABLED: !Ref useCustomLogGroupsFromSecret
           ACCOUNT_ID: !Ref AWS::AccountId
           AWS_PARTITION: !Ref AWS::Partition
           FIREHOSE_ARN: !GetAtt logzioFirehose.Arn
@@ -186,6 +191,7 @@ Resources:
       ServiceToken: !GetAtt CfnLambdaFunction.Arn
       Services: !Ref services
       CustomLogGroups: !Ref customLogGroups
+      SecretEnabled: !Ref useCustomLogGroupsFromSecret
   logGroupCreationEvent:
     Condition: createEventbridgeTrigger
     Type: AWS::Events::Rule
@@ -344,3 +350,29 @@ Resources:
                   - 'firehose:DescribeDeliveryStream'
                   - 'firehose:PutRecord'
                 Resource: !GetAtt logzioFirehose.Arn
+  SecretChangeEventRule:
+    Condition: secretChangeEventsEnabled
+    Type: 'AWS::Events::Rule'
+    Properties:
+      EventPattern:
+        source:
+          - aws.secretmanager
+        detail-type:
+          - 'AWS API Call via CloudTrail'
+        detail:
+          eventName:
+            - 'UpdatedSecret'
+          requestParameters:
+            secretId:
+              - !Ref customLogGroups
+      Targets:
+        - Arn: !GetAtt CfnLambdaFunction.Arn
+          Id: 'SecretChangeLambdaTarget'
+  PermissionForSecretChangeEventToInvokeLambda:
+    Condition: secretChangeEventsEnabled
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !GetAtt CfnLambdaFunction.Arn
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt SecretChangeEventRule.Arn

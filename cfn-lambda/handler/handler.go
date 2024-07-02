@@ -6,7 +6,6 @@ import (
 	"github.com/aws/aws-lambda-go/cfn"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
-	"github.com/aws/aws-secretsmanager-caching-go/secretcache"
 	"github.com/logzio/firehose-logs/common"
 	lp "github.com/logzio/firehose-logs/logger"
 	"go.uber.org/zap"
@@ -14,7 +13,7 @@ import (
 )
 
 const (
-	secretEnabledKey   = "useCustomLogGroupsFromSecret"
+	secretEnabledKey   = "SecretEnabled"
 	customLogGroupsKey = "CustomLogGroups"
 	servicesKey        = "Services"
 )
@@ -75,25 +74,6 @@ func customResourceRunUpdate(ctx context.Context, event cfn.Event) (physicalReso
 	return physicalResourceID, data, nil
 }
 
-func getCustomLogGroups(secretEnabled, customLogGroupsPrmVal string) (string, error) {
-	if secretEnabled == "true" {
-		sugLog.Debug("Attempting to get custom log groups from secret parameter: ", customLogGroupsPrmVal)
-		secretCache, err := secretcache.New()
-		if err != nil {
-			return "", err
-		}
-
-		result, err := secretCache.GetSecretString(customLogGroupsPrmVal)
-		if err != nil {
-			return "", err
-		}
-
-		return result, nil
-	}
-
-	return customLogGroupsPrmVal, nil
-}
-
 func updateConfiguration(ctx context.Context, oldConfig, newConfig map[string]interface{}) error {
 	sess, err := common.GetSession()
 	if err != nil {
@@ -142,11 +122,11 @@ func updateConfiguration(ctx context.Context, oldConfig, newConfig map[string]in
 		return err
 	}
 
-	oldCustomGroupsStr, err = getCustomLogGroups(oldCustomGroupsStr, oldSecretEnabledStr)
+	oldCustomGroupsStr, err = common.GetCustomLogGroups(oldCustomGroupsStr, oldSecretEnabledStr)
 	if err != nil {
 		return err
 	}
-	newCustomGroupsStr, err = getCustomLogGroups(newCustomGroupsStr, newSecretEnabledStr)
+	newCustomGroupsStr, err = common.GetCustomLogGroups(newCustomGroupsStr, newSecretEnabledStr)
 	if err != nil {
 		return err
 	}
