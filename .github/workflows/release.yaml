@@ -29,7 +29,7 @@ jobs:
           passphrase: ${{ secrets.PASSPHRASE }}
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@v6
         with:
           version: latest
           args: release --clean
@@ -42,7 +42,7 @@ jobs:
           cd cfn-lambda
           cp -R ../common ./common
           GOOS=linux GOARCH=amd64 go build -o bootstrap .
-          zip -r ../cfn-lambda.zip . 
+          zip -x "*_test.go" -r ../cfn-lambda.zip . 
           cd ..
 
       - name: Build and Zip EventBridge Lambda function with common dependencies
@@ -50,7 +50,7 @@ jobs:
           cd eventbridge-lambda
           cp -R ../common ./common
           GOOS=linux GOARCH=amd64 go build -o bootstrap .
-          zip -r ../eventbridge-lambda.zip . 
+          zip -x "*_test.go" -r ../eventbridge-lambda.zip . 
           cd ..
 
       - name: Upload Lambdas ZIP as Artifact

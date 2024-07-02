@@ -1,6 +1,7 @@
 package common
 
 import (
+	"github.com/aws/aws-secretsmanager-caching-go/secretcache"
 	"os"
 	"strings"
 )
@@ -12,6 +13,7 @@ const (
 	envFirehoseArn               = "FIREHOSE_ARN"
 	envAccountId                 = "ACCOUNT_ID"
 	envCustomGroups              = "CUSTOM_GROUPS"
+	envSecretEnabled             = "SECRET_ENABLED"
 	envAwsPartition              = "AWS_PARTITION"
 	envPutSubscriptionFilterRole = "PUT_SF_ROLE"
 
@@ -50,14 +52,41 @@ func GetServicesMap() map[string]string {
 	}
 }
 
+func GetCustomLogGroups(secretEnabled, customLogGroupsPrmVal string) (string, error) {
+	if secretEnabled == "true" {
+		sugLog.Debug("Attempting to get custom log groups from secret parameter: ", customLogGroupsPrmVal)
+		secretCache, err := secretcache.New()
+		if err != nil {
+			return "", err
+		}
+
+		result, err := secretCache.GetSecretString(customLogGroupsPrmVal)
+		if err != nil {
+			return "", err
+		}
+
+		return result, nil
+	}
+
+	return customLogGroupsPrmVal, nil
+}
+
 func GetCustomPaths() []string {
 	pathsStr := os.Getenv(envCustomGroups)
+	secretEnabled := os.Getenv(envSecretEnabled)
 	if pathsStr == emptyString {
 		return nil
 	}
 
-	pathsStr = strings.ReplaceAll(pathsStr, " ", "")
-	return strings.Split(pathsStr, valuesSeparator)
+	sugLog.Debug("Getting custom log groups with information; secret enabled: ", secretEnabled)
+	customLogGroupsStr, err := GetCustomLogGroups(secretEnabled, pathsStr)
+	if err != nil {
+		sugLog.Errorf("Failed to get custom log groups from secret due to %s", err.Error())
+		return nil
+	}
+
+	customLogGroupsStr = strings.ReplaceAll(customLogGroupsStr, " ", "")
+	return strings.Split(customLogGroupsStr, valuesSeparator)
 }
 
 func ParseServices(servicesStr string) []string {
