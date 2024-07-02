@@ -71,7 +71,7 @@ Conditions:
       - !Ref services
       - ''
   secretChangeEventsEnabled: !Equals
-    - !ref useCustomLogGroupsFromSecret
+    - !Ref useCustomLogGroupsFromSecret
     - "true"
 
 Resources:
