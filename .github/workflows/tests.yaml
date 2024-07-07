@@ -125,7 +125,7 @@ jobs:
         run: curl -X GET https://$(echo ${{ steps.create_api.outputs.api_id }}).execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/
 
       - name: Wait to allow data to get to logzio
-        run: sleep 60
+        run: sleep 120
 
       # Run tests
       - name: Run Go Tests
@@ -156,7 +156,7 @@ jobs:
         run: curl -X GET https://$(echo ${{ steps.create_api.outputs.api_id }}).execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/
 
       - name: Wait to allow data to get to logzio
-        run: sleep 60
+        run: sleep 240
 
       # Run tests
       - name: Run Go Tests
