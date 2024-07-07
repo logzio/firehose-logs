@@ -166,7 +166,7 @@ Resources:
                 Resource: !GetAtt firehosePutSubscriptionFilterRole.Arn
               - !If
                 - secretChangeEventsEnabled
-                - Sid: read-secret-permission-only-if-necessary
+                - Sid: addReadSecretPermissionOnlyIfNecessary
                   Effect: Allow
                   Action:
                     - 'secretsmanager:DescribeSecret'
