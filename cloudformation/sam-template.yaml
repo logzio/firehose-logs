@@ -30,7 +30,12 @@ Parameters:
     Description: A comma-seperated list of services you want to collect logs from
   customLogGroups:
     Type: String
-    Description: A comma-seperated list of custom log groups you want to collect logs from
+    Description: A comma-separated list of custom log groups to collect logs from, or the name of the secret parameter storing the log groups list if it exceeds 4096 characters.
+  useCustomLogGroupsFromSecret:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "false"
+    Description: Set to 'true' if your customLogGroups exceed the allowed 4096 characters limitation.
   triggerLambdaTimeout:
     Type: Number
     Description: >-
@@ -65,8 +70,12 @@ Conditions:
     - !Equals
       - !Ref services
       - ''
+  secretChangeEventsEnabled: !Equals
+    - !Ref useCustomLogGroupsFromSecret
+    - "true"
 
 Resources:
+  # The lambda functions
   CfnLambdaFunction:
     Type: 'AWS::Lambda::Function'
     DependsOn: logzioFirehose
@@ -85,6 +94,7 @@ Resources:
         Variables:
           SERVICES: !Ref services
           CUSTOM_GROUPS: !Ref customLogGroups
+          SECRET_ENABLED: !Ref useCustomLogGroupsFromSecret
           ACCOUNT_ID: !Ref AWS::AccountId
           AWS_PARTITION: !Ref AWS::Partition
           FIREHOSE_ARN: !GetAtt logzioFirehose.Arn
@@ -109,33 +119,14 @@ Resources:
         Variables:
           SERVICES: !Ref services
           CUSTOM_GROUPS: !Ref customLogGroups
+          SECRET_ENABLED: !Ref useCustomLogGroupsFromSecret
           ACCOUNT_ID: !Ref AWS::AccountId
           AWS_PARTITION: !Ref AWS::Partition
           FIREHOSE_ARN: !GetAtt logzioFirehose.Arn
           LOG_LEVEL: !Ref triggerLambdaLogLevel
           PUT_SF_ROLE: !GetAtt firehosePutSubscriptionFilterRole.Arn
-  LogGroupCreationEventRule:
-    Type: 'AWS::Events::Rule'
-    Properties:
-      EventPattern:
-        source:
-          - 'aws.logs'
-        detail-type:
-          - 'AWS API Call via CloudTrail'
-        detail:
-          eventName:
-            - 'CreateLogGroup'
-      State: ENABLED
-      Targets:
-        - Arn: !GetAtt EventBridgeLambdaFunction.Arn
-          Id: 'EventBridgeLambdaFunctionTarget'
-  PermissionForEventBridgeToInvokeLambda:
-    Type: 'AWS::Lambda::Permission'
-    Properties:
-      Action: 'lambda:InvokeFunction'
-      FunctionName: !GetAtt EventBridgeLambdaFunction.Arn
-      Principal: 'events.amazonaws.com'
-      SourceArn: !GetAtt LogGroupCreationEventRule.Arn
+
+  # Lambda permissions for log groups and using firehose
   lambdaExecutionRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -173,6 +164,16 @@ Resources:
                 Action:
                   - 'iam:PassRole'
                 Resource: !GetAtt firehosePutSubscriptionFilterRole.Arn
+              - !If
+                - secretChangeEventsEnabled
+                - Sid: read-secret-permission-only-if-necessary
+                  Effect: Allow
+                  Action:
+                    - 'secretsmanager:DescribeSecret'
+                    - 'secretsmanager:GetSecretValue'
+                  Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${customLogGroups}*'
+
+  # Triggering events
   triggerPrimerInvoke:
     Type: AWS::CloudFormation::CustomResource
     DependsOn: CfnLambdaFunction
@@ -181,6 +182,8 @@ Resources:
       ServiceToken: !GetAtt CfnLambdaFunction.Arn
       Services: !Ref services
       CustomLogGroups: !Ref customLogGroups
+      SecretEnabled: !Ref useCustomLogGroupsFromSecret
+
   logGroupCreationEvent:
     Condition: createEventbridgeTrigger
     Type: AWS::Events::Rule
@@ -201,6 +204,28 @@ Resources:
       Targets:
         - Arn: !GetAtt EventBridgeLambdaFunction.Arn
           Id: 'EventBridgeLambdaFunctionTarget'
+
+  secretChangeEvent:
+    Type: 'AWS::Events::Rule'
+    Properties:
+      Description: 'This event is triggered by change in the secret where the custom log groups are saved (if used a secret)'
+      EventPattern:
+        source:
+          - 'secretsmanager.amazonaws.com'
+        detail-type:
+          - 'AWS API Call via CloudTrail'
+        detail:
+          eventName:
+            - 'PutSecretValue'
+          requestParameters:
+            secretId:
+              - !Ref customLogGroups
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt CfnLambdaFunction.Arn
+          Id: 'SecretChangeLambdaTarget'
+
+  # Permissions to trigger events
   permissionForEventsToInvokeLambda:
     Condition: createEventbridgeTrigger
     Type: AWS::Lambda::Permission
@@ -209,6 +234,17 @@ Resources:
       Action: 'lambda:InvokeFunction'
       Principal: 'events.amazonaws.com'
       SourceArn: !GetAtt logGroupCreationEvent.Arn
+
+  PermissionForSecretChangeEventToInvokeLambda:
+    Condition: secretChangeEventsEnabled
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref CfnLambdaFunction
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt secretChangeEvent.Arn
+
+  # Firehose and S3 Resources
   logzioFirehose:
     Type: AWS::KinesisFirehose::DeliveryStream
     Properties:

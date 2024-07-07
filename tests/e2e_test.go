@@ -3,25 +3,41 @@ package tests
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 )
 
 var logger, _ = zap.NewProduction()
+var logType string
 
 type LogResponse struct {
 	Hits struct {
 		Total int `json:"total"`
 		Hits  []struct {
 			Source struct {
-				LogType string `json:"type"`
+				LogType  string `json:"type"`
+				LogGroup string `json:"logGroup"`
 			} `json:"_source"`
 		} `json:"hits"`
 	} `json:"hits"`
+}
+
+func TestMain(m *testing.M) {
+	// Get log type to search for
+	flag.StringVar(&logType, "logType", "logzio_firehose", "log type to search for in logzio")
+	flag.Parse()
+
+	// Run the tests
+	exitVal := m.Run()
+
+	os.Exit(exitVal)
 }
 
 func TestNeededDataGotToLogzio(t *testing.T) {
@@ -38,19 +54,23 @@ func TestNeededDataGotToLogzio(t *testing.T) {
 		t.Errorf("No logs found")
 	}
 
-	/* To add extra checks here */
+	possibleLogGroups := []string{"API-Gateway-Execution-Logs_", "/aws/apigateway/welcome"}
+	for _, hit := range logzioLogs.Hits.Hits {
+		assert.True(t, containsAny(hit.Source.LogGroup, possibleLogGroups))
+	}
+
 }
 
 func fetchLogs(logsApiToken string) (*LogResponse, error) {
 	url := "https://api.logz.io/v1/search"
 	client := &http.Client{}
-	query := `{
+	query := fmt.Sprintf(`{
 		"query": {
 			"query_string": {
-				"query": "type:logzio_firehose"
+				"query": "type:%s"
 			}
 		}
-	}`
+	}`, logType)
 
 	logger.Info("sending api request", zap.String("url", url), zap.String("query", query))
 	req, err := http.NewRequest("POST", url, bytes.NewBufferString(query))
@@ -83,4 +103,13 @@ func fetchLogs(logsApiToken string) (*LogResponse, error) {
 	}
 
 	return &logResponse, nil
+}
+
+func containsAny(s string, subStrings []string) bool {
+	for _, subStr := range subStrings {
+		if strings.Contains(s, subStr) {
+			return true
+		}
+	}
+	return false
 }

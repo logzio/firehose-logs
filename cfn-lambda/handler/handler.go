@@ -12,6 +12,12 @@ import (
 	"os"
 )
 
+const (
+	secretEnabledKey   = "SecretEnabled"
+	customLogGroupsKey = "CustomLogGroups"
+	servicesKey        = "Services"
+)
+
 var sugLog *zap.SugaredLogger
 
 func HandleRequest(ctx context.Context, event cfn.Event) (physicalResourceID string, data map[string]interface{}, err error) {
@@ -46,6 +52,7 @@ func HandleRequest(ctx context.Context, event cfn.Event) (physicalResourceID str
 func generatePhysicalResourceId(event cfn.Event) string {
 	// Concatenate StackId and LogicalResourceId to form a unique PhysicalResourceId
 	physicalResourceId := fmt.Sprintf("%s-%s", event.StackID, event.LogicalResourceID)
+	sugLog.Debug("Generated physicalId with value: ", physicalResourceId)
 	return physicalResourceId
 }
 
@@ -91,19 +98,36 @@ func updateConfiguration(ctx context.Context, oldConfig, newConfig map[string]in
 	}
 
 	// Extract and validate services and custom log group strings from the configurations
-	oldServicesStr, err := extractConfigString(oldConfig, "Services")
+	oldServicesStr, err := extractConfigString(oldConfig, servicesKey)
 	if err != nil {
 		return err
 	}
-	newServicesStr, err := extractConfigString(newConfig, "Services")
+	newServicesStr, err := extractConfigString(newConfig, servicesKey)
 	if err != nil {
 		return err
 	}
-	oldCustomGroupsStr, err := extractConfigString(oldConfig, "CustomLogGroups")
+	oldCustomGroupsStr, err := extractConfigString(oldConfig, customLogGroupsKey)
 	if err != nil {
 		return err
 	}
-	newCustomGroupsStr, err := extractConfigString(newConfig, "CustomLogGroups")
+	oldSecretEnabledStr, err := extractConfigString(oldConfig, secretEnabledKey)
+	if err != nil {
+		return err
+	}
+	newCustomGroupsStr, err := extractConfigString(newConfig, customLogGroupsKey)
+	if err != nil {
+		return err
+	}
+	newSecretEnabledStr, err := extractConfigString(newConfig, secretEnabledKey)
+	if err != nil {
+		return err
+	}
+
+	oldCustomGroupsStr, err = common.GetCustomLogGroups(oldCustomGroupsStr, oldSecretEnabledStr)
+	if err != nil {
+		return err
+	}
+	newCustomGroupsStr, err = common.GetCustomLogGroups(newCustomGroupsStr, newSecretEnabledStr)
 	if err != nil {
 		return err
 	}

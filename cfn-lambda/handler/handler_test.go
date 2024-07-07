@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 	"os"
+	"sort"
 	"testing"
 )
 
@@ -161,6 +162,8 @@ func TestFindDifferences(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			resultToAdd, resultToRemove := findDifferences(test.old, test.new)
+			sort.Strings(resultToAdd)
+			sort.Strings(resultToRemove)
 			assert.Equal(t, test.expectedToAdd, resultToAdd, "Expected %v, got %v", test.expectedToAdd, resultToAdd)
 			assert.Equal(t, test.expectedToRemove, resultToRemove, "Expected %v, got %v", test.expectedToRemove, resultToRemove)
 		})
