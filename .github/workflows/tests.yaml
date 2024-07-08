@@ -138,16 +138,15 @@ jobs:
       - name: Create a secret with custom log group
         id: create_secret
         run: |
-          aws secretsmanager create-secret \
-          --name auto-test-firehose-log-secret-$(echo ${{ steps.create_api.outputs.api_id }}) \
-          --secret-string "{\"logzioCustomLogGroups\":\"API-Gateway-Execution-Logs_$(echo ${{ steps.create_api.outputs.api_id }})/test\"}"
+          secret_arn=$(aws secretsmanager create-secret --name auto-test-firehose-log-secret-$(echo ${{ steps.create_api.outputs.api_id }}) --secret-string "{\"logzioCustomLogGroups\":\"API-Gateway-Execution-Logs_$(echo ${{ steps.create_api.outputs.api_id }})/test\"}" --query 'ARN')
+          echo "::set-output name=secret_arn::$secret_arn"
 
       - name: Update Stack to use customLogGroups from secret
         run: |
           aws cloudformation update-stack \
           --stack-name auto-test-firehose-log \
           --capabilities CAPABILITY_NAMED_IAM \
-          --use-previous-template --parameters ParameterKey=customLogGroups,ParameterValue=auto-test-firehose-log-secret-$(echo ${{ steps.create_api.outputs.api_id }}) ParameterKey=useCustomLogGroupsFromSecret,ParameterValue=true ParameterKey=logzioType,ParameterValue=logzio_firehose_test2 ParameterKey=logzioToken,UsePreviousValue=true ParameterKey=logzioListener,UsePreviousValue=true ParameterKey=services,UsePreviousValue=true
+          --use-previous-template --parameters ParameterKey=customLogGroups,ParameterValue=$(echo ${{ steps.create_secret.outputs.secret_arn }}) ParameterKey=useCustomLogGroupsFromSecret,ParameterValue=true ParameterKey=logzioType,ParameterValue=logzio_firehose_test2 ParameterKey=logzioToken,UsePreviousValue=true ParameterKey=logzioListener,UsePreviousValue=true ParameterKey=services,UsePreviousValue=true
 
       - name: Wait for stack to finish updating
         run: aws cloudformation wait stack-update-complete --stack-name auto-test-firehose-log
