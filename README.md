@@ -81,8 +81,9 @@ If your `customLogGroups` list exceeds the 4096 characters limit, follow the bel
    - For `key` use `logzioCustomLogGroups`
    - In `value` store your comma-separated custom log groups list
    - Name your secret, for example as `LogzioCustomLogGroups`
+   - Copy the new secret's ARN
 3. In your stack, Set: 
-   - `customLogGroups` to `LogzioCustomLogGroups` (or your custom secret name)
+   - `customLogGroups` to your secret ARN that you copied in step 2
    - `useCustomLogGroupsFromSecret` to `true`
 
 </details>

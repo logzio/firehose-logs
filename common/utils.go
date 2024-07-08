@@ -5,16 +5,17 @@ import (
 	"fmt"
 	"github.com/aws/aws-secretsmanager-caching-go/secretcache"
 	"os"
+	"regexp"
 	"strings"
 )
 
 const (
 	envServices                  = "SERVICES"
-	envAwsRegion                 = "AWS_REGION"               // reserved env
+	EnvAwsRegion                 = "AWS_REGION"               // reserved env
 	EnvFunctionName              = "AWS_LAMBDA_FUNCTION_NAME" // reserved env
 	envFirehoseArn               = "FIREHOSE_ARN"
 	envAccountId                 = "ACCOUNT_ID"
-	envCustomGroups              = "CUSTOM_GROUPS"
+	EnvCustomGroups              = "CUSTOM_GROUPS"
 	envSecretEnabled             = "SECRET_ENABLED"
 	envAwsPartition              = "AWS_PARTITION"
 	envPutSubscriptionFilterRole = "PUT_SF_ROLE"
@@ -54,6 +55,44 @@ func GetServicesMap() map[string]string {
 	}
 }
 
+// FindDifferences finds elements in 'new' that are not in 'old', and vice versa.
+func FindDifferences(old, new []string) (toAdd, toRemove []string) {
+	oldSet := make(map[string]struct{})
+	newSet := make(map[string]struct{})
+
+	// Populate 'oldSet' with elements from the 'old' slice.
+	for _, item := range old {
+		oldSet[item] = struct{}{}
+	}
+
+	for _, item := range new {
+		newSet[item] = struct{}{}
+	}
+
+	// Find elements in 'new' that are not in 'old' and add them to 'toAdd'.
+	for item := range newSet {
+		_, exists := oldSet[item] // Check if 'item' exists in 'oldSet'
+		if !exists {
+			toAdd = append(toAdd, item)
+		}
+	}
+
+	for item := range oldSet {
+		_, exists := newSet[item]
+		if !exists {
+			toRemove = append(toRemove, item)
+		}
+	}
+
+	return toAdd, toRemove
+}
+
+func GetSecretNameFromArn(secretArn string) string {
+	getSecretName := regexp.MustCompile(fmt.Sprintf(`^arn:aws:secretsmanager:%s:%s:secret:(\S+)-`, os.Getenv(EnvAwsRegion), os.Getenv(envAccountId)))
+	secretName := getSecretName.FindString(secretArn)
+	return secretName
+}
+
 func GetCustomLogGroups(secretEnabled, customLogGroupsPrmVal string) (string, error) {
 	initLogger()
 	if secretEnabled == "true" {
@@ -63,7 +102,9 @@ func GetCustomLogGroups(secretEnabled, customLogGroupsPrmVal string) (string, er
 			return "", err
 		}
 
-		result, err := secretCache.GetSecretString(customLogGroupsPrmVal)
+		secretName := GetSecretNameFromArn(customLogGroupsPrmVal)
+
+		result, err := secretCache.GetSecretString(secretName)
 		if err != nil {
 			return "", err
 		}
@@ -86,7 +127,7 @@ func GetCustomLogGroups(secretEnabled, customLogGroupsPrmVal string) (string, er
 
 func GetCustomPaths() []string {
 	initLogger()
-	pathsStr := os.Getenv(envCustomGroups)
+	pathsStr := os.Getenv(EnvCustomGroups)
 	secretEnabled := os.Getenv(envSecretEnabled)
 	if pathsStr == emptyString {
 		return nil

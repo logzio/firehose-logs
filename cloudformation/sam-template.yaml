@@ -30,7 +30,7 @@ Parameters:
     Description: A comma-seperated list of services you want to collect logs from
   customLogGroups:
     Type: String
-    Description: A comma-separated list of custom log groups to collect logs from, or the name of the secret parameter storing the log groups list if it exceeds 4096 characters.
+    Description: A comma-separated list of custom log groups to collect logs from, or the ARN of the secret parameter storing the log groups list if it exceeds 4096 characters.
   useCustomLogGroupsFromSecret:
     Type: String
     AllowedValues: ["true", "false"]
@@ -171,6 +171,7 @@ Resources:
                   Action:
                     - 'secretsmanager:DescribeSecret'
                     - 'secretsmanager:GetSecretValue'
+                    - 'secretsmanager:ListSecretVersionIds'
                   Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${customLogGroups}*'
                 - !Ref "AWS::NoValue"
 
@@ -207,15 +208,18 @@ Resources:
           Id: 'EventBridgeLambdaFunctionTarget'
 
   secretChangeEvent:
+    Condition: secretChangeEventsEnabled
     Type: 'AWS::Events::Rule'
     Properties:
       Description: 'This event is triggered by change in the secret where the custom log groups are saved (if used a secret)'
       EventPattern:
         source:
-          - 'secretsmanager.amazonaws.com'
+          - 'aws.secretsmanager'
         detail-type:
           - 'AWS API Call via CloudTrail'
         detail:
+          eventSource:
+            - 'secretsmanager.amazonaws.com'
           eventName:
             - 'PutSecretValue'
           requestParameters:
@@ -223,7 +227,7 @@ Resources:
               - !Ref customLogGroups
       State: ENABLED
       Targets:
-        - Arn: !GetAtt CfnLambdaFunction.Arn
+        - Arn: !GetAtt EventBridgeLambdaFunction.Arn
           Id: 'SecretChangeLambdaTarget'
 
   # Permissions to trigger events

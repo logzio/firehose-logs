@@ -25,7 +25,7 @@ func setup() (logsClient *cloudwatchlogs.CloudWatchLogs) {
 		return
 	}
 
-	err = os.Setenv(envAwsRegion, "not-existing-region")
+	err = os.Setenv(EnvAwsRegion, "not-existing-region")
 	if err != nil {
 		return
 	}

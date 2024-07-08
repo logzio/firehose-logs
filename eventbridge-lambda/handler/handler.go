@@ -2,11 +2,14 @@ package handler
 
 import (
 	"context"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 	"github.com/logzio/firehose-logs/common"
 	lp "github.com/logzio/firehose-logs/logger"
 	"go.uber.org/zap"
 	"os"
+	"sort"
 	"strings"
 )
 
@@ -23,9 +26,51 @@ func HandleEventBridgeRequest(ctx context.Context, event map[string]interface{})
 		return "Lambda finished with error", err
 	}
 
-	if _, ok := event["detail"]; ok {
-		// Extracted EventBridge event handling logic
-		newLogGroupCreated(event["detail"].(map[string]interface{})["requestParameters"].(map[string]interface{})["logGroupName"].(string))
+	// Extracted EventBridge event handling logic
+	if detail, ok := event["detail"].(map[string]interface{}); ok {
+		eventName := detail["eventName"]
+
+		switch eventName {
+		case "CreateLogGroup":
+			if requestParameters, ok := detail["requestParameters"].(map[string]interface{}); ok {
+				if logGroupName, ok := requestParameters["logGroupName"].(string); ok {
+					newLogGroupCreated(logGroupName)
+				} else {
+					sugLog.Debug("log group name is not of type string or missing from EventBridge event")
+				}
+			} else {
+				sugLog.Debug("request parameters is not of type map[string]interface{} or missing from EventBridge event.")
+			}
+		case "PutSecretValue":
+			if requestParameters, ok := detail["requestParameters"].(map[string]interface{}); ok {
+				if secretId, ok := requestParameters["secretString"].(string); ok {
+					secretName := os.Getenv(common.EnvCustomGroups)
+					// make sure the secret that changed is the relevant secret
+					if secretId == secretName {
+						err := updateSecretCustomLogGroups(ctx, secretId)
+						if err != nil {
+							return "", err
+						}
+					}
+					if strings.Contains(secretId, secretName) {
+						err := updateSecretCustomLogGroups(ctx, secretId)
+						if err != nil {
+							return "", err
+						}
+					} else {
+						sugLog.Debug("The EventBridge event secretId is not the secret that has custom log groups in it. Skipping it.")
+					}
+				} else {
+					sugLog.Debug("secretId is not of string or missing from EventBridge event.")
+				}
+			} else {
+				sugLog.Debug("requestParameters is not of type map[string]interface{} or missing from EventBridge event.")
+			}
+		default:
+			sugLog.Debugf("Detected unsupported event type %s", eventName)
+		}
+	} else {
+		sugLog.Debug("detail is not of type map[string]interface{} or missing from EventBridge event.")
 	}
 
 	return "EventBridge event processed", nil
@@ -61,4 +106,89 @@ func newLogGroupCreated(logGroup string) {
 	}
 
 	sugLog.Info("Log group ", logGroup, " does not match any of the selected services: ", servicesToAdd)
+}
+
+func _getLatestOldSecretVersion(ctx context.Context, svc *secretsmanager.Client, secretId string) (*string, error) {
+	var latestOldVersionId *string
+
+	listSecretVersionsInput := &secretsmanager.ListSecretVersionIdsInput{
+		SecretId: &secretId,
+	}
+
+	secretInfo, err := svc.ListSecretVersionIds(ctx, listSecretVersionsInput)
+	if err != nil {
+		sugLog.Error("Failed to update custom log groups based on change in the secret")
+		return nil, err
+	}
+
+	// Sort the versions based on created date
+	sort.Slice(secretInfo.Versions, func(i, j int) bool {
+		return secretInfo.Versions[i].CreatedDate.After(*secretInfo.Versions[j].CreatedDate)
+	})
+
+	if len(secretInfo.Versions) > 1 {
+		latestOldVersionId = secretInfo.Versions[1].VersionId
+	} else {
+		sugLog.Warn("Custom log groups secret doesn't have older version to apply changes in comparison to.")
+	}
+
+	return latestOldVersionId, nil
+}
+
+func _getOldSecretValue(ctx context.Context, svc *secretsmanager.Client, secretId string, oldVersionId *string) (string, error) {
+	// get the old version value
+	getOldSecretValueInput := &secretsmanager.GetSecretValueInput{
+		SecretId:  &secretId,
+		VersionId: oldVersionId,
+	}
+
+	oldSecret, err := svc.GetSecretValue(ctx, getOldSecretValueInput)
+	if err != nil {
+		sugLog.Error("Failed to get the old value of the custom log groups secret")
+		return "", err
+	}
+	oldSecretValue := oldSecret.SecretString
+	return *oldSecretValue, nil
+}
+
+func updateSecretCustomLogGroups(ctx context.Context, secretId string) error {
+	// handle the event;  get last version >> update according to it.
+	awsConf := aws.Config{
+		Region: *aws.String(os.Getenv(common.EnvAwsRegion)),
+	}
+	svc := secretsmanager.NewFromConfig(awsConf)
+
+	oldVersionId, err := _getLatestOldSecretVersion(ctx, svc, secretId)
+	if err != nil {
+		sugLog.Error("Failed to get the older custom log group secret version.")
+		return err
+	}
+
+	oldSecretValueStr, err := _getOldSecretValue(ctx, svc, secretId, oldVersionId)
+	if err != nil {
+		sugLog.Error("Failed to get the old custom log group secret version's value.")
+		return err
+	}
+
+	newSecretValueStr, err := common.GetCustomLogGroups("true", common.GetSecretNameFromArn(secretId))
+	if err != nil {
+		sugLog.Error("Failed to get the current custom log group secret value.")
+		return err
+	}
+
+	oldSecretValue := common.ParseServices(oldSecretValueStr)
+	newSecretValue := common.ParseServices(newSecretValueStr)
+	customGroupsToAdd, customGroupsToRemove := common.FindDifferences(oldSecretValue, newSecretValue)
+
+	sess, err := common.GetSession()
+	if err != nil {
+		sugLog.Error("Error while creating session: ", err.Error())
+		return err
+	}
+
+	if err := common.UpdateSubscriptionFilters(sess, []string{}, []string{}, customGroupsToAdd, customGroupsToRemove); err != nil {
+		sugLog.Errorf("Error updating subscription filters: %v", err)
+		return err
+	}
+	return nil
 }
