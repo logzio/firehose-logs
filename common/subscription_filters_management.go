@@ -8,6 +8,9 @@ import (
 )
 
 func getLogGroups(services []string, logsClient *cloudwatchlogs.CloudWatchLogs) []string {
+	if sugLog == nil {
+		initLogger()
+	}
 	logGroupsToAdd := make([]string, 0)
 	serviceToPrefix := GetServicesMap()
 	for _, service := range services {
@@ -58,6 +61,9 @@ func logGroupsPagination(prefix string, logsClient *cloudwatchlogs.CloudWatchLog
 }
 
 func AddServices(sess *session.Session, servicesToAdd []string) ([]string, error) {
+	if sugLog == nil {
+		initLogger()
+	}
 	logsClient := cloudwatchlogs.New(sess)
 	logGroups := getLogGroups(servicesToAdd, logsClient)
 	if len(logGroups) > 0 {
@@ -107,6 +113,9 @@ func PutSubscriptionFilter(logGroups []string, logsClient *cloudwatchlogs.CloudW
 }
 
 func UpdateSubscriptionFilters(sess *session.Session, servicesToAdd, servicesToRemove, customGroupsToAdd, customGroupsToRemove []string) error {
+	if sugLog == nil {
+		initLogger()
+	}
 	// Add subscription filters for new services
 	if len(servicesToAdd) > 0 {
 		addedServices, err := AddServices(sess, servicesToAdd)
@@ -184,6 +193,9 @@ func DeleteSubscriptionFilter(logGroups []string, logsClient *cloudwatchlogs.Clo
 }
 
 func DeleteServices(sess *session.Session, servicesToDelete []string) ([]string, error) {
+	if sugLog == nil {
+		initLogger()
+	}
 	logsClient := cloudwatchlogs.New(sess)
 	logGroups := getLogGroups(servicesToDelete, logsClient)
 
@@ -221,6 +233,9 @@ func AddCustom(sess *session.Session, customGroup, added []string) ([]string, er
 }
 
 func DeleteCustom(sess *session.Session, customGroup []string) ([]string, error) {
+	if sugLog == nil {
+		initLogger()
+	}
 	logsClient := cloudwatchlogs.New(sess)
 
 	newDeleted := DeleteSubscriptionFilter(customGroup, logsClient)

@@ -156,3 +156,23 @@ func TestFindDifferences(t *testing.T) {
 		})
 	}
 }
+
+func TestGetSecretNameFromArn(t *testing.T) {
+	err := os.Setenv(EnvAwsRegion, "us-east-1")
+	if err != nil {
+		return
+	}
+	err = os.Setenv(envAccountId, "486140753397")
+	if err != nil {
+		return
+	}
+
+	arn := "arn:aws:secretsmanager:us-east-1:486140753397:secret:testSecretName-56y7ud"
+	assert.Equal(t, "testSecretName", GetSecretNameFromArn(arn))
+
+	arn = "arn:aws:secretsmanager:us-east-1:486140753397:secret:random-name-56y7ud"
+	assert.Equal(t, "random-name", GetSecretNameFromArn(arn))
+
+	arn = "arn:aws:secretsmanager:us-east-1:486140753397:secret:now1with2numbers345-56y7ud"
+	assert.Equal(t, "now1with2numbers345", GetSecretNameFromArn(arn))
+}

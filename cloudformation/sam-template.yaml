@@ -223,7 +223,9 @@ Resources:
           eventName:
             - 'PutSecretValue'
           requestParameters:
-            secretId: !Ref customLogGroups
+            secretId:
+              - !Ref customLogGroups
+      Name: !Join [ '-', [ 'customLogGroupsSecretChanged', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
       State: ENABLED
       Targets:
         - Arn: !GetAtt EventBridgeLambdaFunction.Arn
