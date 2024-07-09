@@ -88,8 +88,18 @@ func FindDifferences(old, new []string) (toAdd, toRemove []string) {
 }
 
 func GetSecretNameFromArn(secretArn string) string {
-	getSecretName := regexp.MustCompile(fmt.Sprintf(`^arn:aws:secretsmanager:%s:%s:secret:(\S+)-`, os.Getenv(EnvAwsRegion), os.Getenv(envAccountId)))
-	secretName := getSecretName.FindString(secretArn)
+	var secretName string
+
+	getSecretName := regexp.MustCompile(fmt.Sprintf(`^arn:aws:secretsmanager:%s:%s:secret:(?P<secretName>\S+)-`, os.Getenv(EnvAwsRegion), os.Getenv(envAccountId)))
+	match := getSecretName.FindStringSubmatch(secretArn)
+
+	for i, key := range getSecretName.SubexpNames() {
+		if key == "secretName" {
+			secretName = match[i]
+			break
+		}
+	}
+
 	return secretName
 }
 

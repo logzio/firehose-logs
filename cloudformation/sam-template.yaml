@@ -223,8 +223,7 @@ Resources:
           eventName:
             - 'PutSecretValue'
           requestParameters:
-            secretId:
-              - !Ref customLogGroups
+            secretId: !Ref customLogGroups
       State: ENABLED
       Targets:
         - Arn: !GetAtt EventBridgeLambdaFunction.Arn
