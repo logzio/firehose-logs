@@ -43,7 +43,7 @@ func HandleEventBridgeRequest(ctx context.Context, event map[string]interface{})
 			}
 		case "PutSecretValue":
 			if requestParameters, ok := detail["requestParameters"].(map[string]interface{}); ok {
-				if secretId, ok := requestParameters["secretString"].(string); ok {
+				if secretId, ok := requestParameters["secretId"].(string); ok {
 					secretName := os.Getenv(common.EnvCustomGroups)
 					// make sure the secret that changed is the relevant secret
 					if secretId == secretName {

@@ -172,10 +172,7 @@ Resources:
                     - 'secretsmanager:DescribeSecret'
                     - 'secretsmanager:GetSecretValue'
                     - 'secretsmanager:ListSecretVersionIds'
-                    - 'events:DescribeRule'
-                  Resource:
-                    - !Ref customLogGroups
-                    - !Sub 'arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/customLogGroupsSecretChanged-*'
+                  Resource: !Ref customLogGroups
                 - !Ref "AWS::NoValue"
 
   # Triggering events
