@@ -2,7 +2,7 @@ package handler
 
 import (
 	"context"
-	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 	"github.com/logzio/firehose-logs/common"
@@ -117,7 +117,7 @@ func _getLatestOldSecretVersion(ctx context.Context, svc *secretsmanager.Client,
 
 	secretInfo, err := svc.ListSecretVersionIds(ctx, listSecretVersionsInput)
 	if err != nil {
-		sugLog.Error("Failed to update custom log groups based on change in the secret")
+		sugLog.Error("Failed to list secret versions to update the monitored custom log groups")
 		return nil, err
 	}
 
@@ -153,8 +153,10 @@ func _getOldSecretValue(ctx context.Context, svc *secretsmanager.Client, secretI
 
 func updateSecretCustomLogGroups(ctx context.Context, secretId string) error {
 	// handle the event;  get last version >> update according to it.
-	awsConf := aws.Config{
-		Region: *aws.String(os.Getenv(common.EnvAwsRegion)),
+	awsConf, err := config.LoadDefaultConfig(ctx, config.WithRegion(os.Getenv(common.EnvAwsRegion)))
+	if err != nil {
+		sugLog.Error("Failed to setup connection to get older custom log groups secret values.")
+		return err
 	}
 	svc := secretsmanager.NewFromConfig(awsConf)
 
