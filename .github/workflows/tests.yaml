@@ -137,7 +137,7 @@ jobs:
         working-directory: ./tests
         env:
           LOGZIO_API_TOKEN: ${{ secrets.LOGZIO_API_TOKEN }}
-        run: go test -v ./e2e_test.go -args -logType=${{ steps.random_id.outputs.random_id }})
+        run: go test -v ./e2e_test.go -args -logType=${{ steps.random_id.outputs.random_id }}
 
       # Update stack to test using secret for customLogGroups
       - name: Create a secret with custom log group
@@ -167,7 +167,7 @@ jobs:
         working-directory: ./tests
         env:
           LOGZIO_API_TOKEN: ${{ secrets.LOGZIO_API_TOKEN }}
-        run: go test -v ./e2e_test.go -args -logType=${{ steps.random_id.outputs.random_id }})2
+        run: go test -v ./e2e_test.go -args -logType=${{ steps.random_id.outputs.random_id }}2
 
       # Cleanup
       - name: Delete the API Gateway
