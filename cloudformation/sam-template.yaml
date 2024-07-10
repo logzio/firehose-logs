@@ -172,7 +172,10 @@ Resources:
                     - 'secretsmanager:DescribeSecret'
                     - 'secretsmanager:GetSecretValue'
                     - 'secretsmanager:ListSecretVersionIds'
-                  Resource: !Ref customLogGroups
+                    - 'events:DescribeRule'
+                  Resource:
+                    - !Ref customLogGroups
+                    - !Sub 'arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/customLogGroupsSecretChanged-*'
                 - !Ref "AWS::NoValue"
 
   # Triggering events
@@ -246,7 +249,7 @@ Resources:
     Type: AWS::Lambda::Permission
     Properties:
       Action: 'lambda:InvokeFunction'
-      FunctionName: !Ref CfnLambdaFunction
+      FunctionName: !Ref EventBridgeLambdaFunction
       Principal: 'events.amazonaws.com'
       SourceArn: !GetAtt secretChangeEvent.Arn
 
