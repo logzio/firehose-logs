@@ -172,7 +172,7 @@ func updateSecretCustomLogGroups(ctx context.Context, secretId string) error {
 		return err
 	}
 
-	newSecretValueStr, err := common.GetCustomLogGroups("true", common.GetSecretNameFromArn(secretId))
+	newSecretValueStr, err := common.GetCustomLogGroups("true", secretId)
 	if err != nil {
 		sugLog.Error("Failed to get the current custom log group secret value.")
 		return err
