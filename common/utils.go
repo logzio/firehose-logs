@@ -89,12 +89,17 @@ func FindDifferences(old, new []string) (toAdd, toRemove []string) {
 
 func GetSecretNameFromArn(secretArn string) string {
 	var secretName string
+	if sugLog == nil {
+		initLogger()
+	}
+
+	sugLog.Debugf("Attempting to extract secret name from ARN: '%s'", secretArn)
 
 	getSecretName := regexp.MustCompile(fmt.Sprintf(`^arn:aws:secretsmanager:%s:%s:secret:(?P<secretName>\S+)-`, os.Getenv(EnvAwsRegion), os.Getenv(envAccountId)))
 	match := getSecretName.FindStringSubmatch(secretArn)
 
 	for i, key := range getSecretName.SubexpNames() {
-		if key == "secretName" {
+		if key == "secretName" && len(match) > i {
 			secretName = match[i]
 			break
 		}
@@ -104,7 +109,9 @@ func GetSecretNameFromArn(secretArn string) string {
 }
 
 func GetCustomLogGroups(secretEnabled, customLogGroupsPrmVal string) (string, error) {
-	initLogger()
+	if sugLog == nil {
+		initLogger()
+	}
 	if secretEnabled == "true" {
 		sugLog.Debug("Attempting to get custom log groups from secret parameter: ", customLogGroupsPrmVal)
 		secretCache, err := secretcache.New()
@@ -136,7 +143,9 @@ func GetCustomLogGroups(secretEnabled, customLogGroupsPrmVal string) (string, er
 }
 
 func GetCustomPaths() []string {
-	initLogger()
+	if sugLog == nil {
+		initLogger()
+	}
 	pathsStr := os.Getenv(EnvCustomGroups)
 	secretEnabled := os.Getenv(envSecretEnabled)
 	if pathsStr == emptyString {
