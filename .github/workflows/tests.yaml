@@ -111,13 +111,18 @@ jobs:
         run: |
           grep -rli '<<REGION>>' * | xargs -i@ sed -i 's/<<REGION>>/${{ env.AWS_REGION }}/g' @
           grep -rli '<<VERSION>>' * | xargs -i@ sed -i 's/<<VERSION>>/${{ env.TEST_VERSION }}/g' @
+
+      - name: Generate random id for the test
+        id: random_id
+        run: echo "::set-output name=random_id::$(echo $RANDOM)"
+
       - name: Deploy test stack
         id: create_stack
         run: |
           aws cloudformation deploy \
           --template-file ./cloudformation/sam-template.yaml \
           --stack-name auto-test-firehose-log \
-          --parameter-overrides logzioToken=${{ secrets.LOGZIO_SHIPPING_TOKEN }} logzioListener=https://aws-firehose-logs-listener.logz.io services=apigateway customLogGroups=API-Gateway-Execution-Logs_$(echo ${{ steps.create_api.outputs.api_id }})/test \
+          --parameter-overrides logzioToken=${{ secrets.LOGZIO_SHIPPING_TOKEN }} logzioType=$(echo ${{ steps.random_id.outputs.random_id }}) logzioListener=https://aws-firehose-logs-listener.logz.io services=apigateway customLogGroups=API-Gateway-Execution-Logs_$(echo ${{ steps.create_api.outputs.api_id }})/test \
           --capabilities CAPABILITY_NAMED_IAM \
           --disable-rollback
 
@@ -132,7 +137,7 @@ jobs:
         working-directory: ./tests
         env:
           LOGZIO_API_TOKEN: ${{ secrets.LOGZIO_API_TOKEN }}
-        run: go test -v ./e2e_test.go
+        run: go test -v ./e2e_test.go -args -logType=${{ steps.random_id.outputs.random_id }})
 
       # Update stack to test using secret for customLogGroups
       - name: Create a secret with custom log group
@@ -146,7 +151,7 @@ jobs:
           aws cloudformation update-stack \
           --stack-name auto-test-firehose-log \
           --capabilities CAPABILITY_NAMED_IAM \
-          --use-previous-template --parameters ParameterKey=customLogGroups,ParameterValue=$(echo ${{ steps.create_secret.outputs.secret_arn }}) ParameterKey=useCustomLogGroupsFromSecret,ParameterValue=true ParameterKey=logzioType,ParameterValue=logzio_firehose_test2 ParameterKey=logzioToken,UsePreviousValue=true ParameterKey=logzioListener,UsePreviousValue=true ParameterKey=services,UsePreviousValue=true
+          --use-previous-template --parameters ParameterKey=customLogGroups,ParameterValue=$(echo ${{ steps.create_secret.outputs.secret_arn }}) ParameterKey=useCustomLogGroupsFromSecret,ParameterValue=true ParameterKey=logzioType,ParameterValue=$(echo ${{ steps.random_id.outputs.random_id }})2 ParameterKey=logzioToken,UsePreviousValue=true ParameterKey=logzioListener,UsePreviousValue=true ParameterKey=services,UsePreviousValue=true
 
       - name: Wait for stack to finish updating
         run: aws cloudformation wait stack-update-complete --stack-name auto-test-firehose-log
@@ -162,7 +167,7 @@ jobs:
         working-directory: ./tests
         env:
           LOGZIO_API_TOKEN: ${{ secrets.LOGZIO_API_TOKEN }}
-        run: go test -v ./e2e_test.go -args -logType=logzio_firehose_test2
+        run: go test -v ./e2e_test.go -args -logType=${{ steps.random_id.outputs.random_id }})2
 
       # Cleanup
       - name: Delete the API Gateway

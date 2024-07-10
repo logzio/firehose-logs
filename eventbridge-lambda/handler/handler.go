@@ -108,7 +108,7 @@ func newLogGroupCreated(logGroup string) {
 	sugLog.Info("Log group ", logGroup, " does not match any of the selected services: ", servicesToAdd)
 }
 
-func _getLatestOldSecretVersion(ctx context.Context, svc *secretsmanager.Client, secretId string) (*string, error) {
+func getPreviousSecretVersion(ctx context.Context, svc *secretsmanager.Client, secretId string) (*string, error) {
 	var latestOldVersionId *string
 
 	listSecretVersionsInput := &secretsmanager.ListSecretVersionIdsInput{
@@ -135,7 +135,7 @@ func _getLatestOldSecretVersion(ctx context.Context, svc *secretsmanager.Client,
 	return latestOldVersionId, nil
 }
 
-func _getOldSecretValue(ctx context.Context, svc *secretsmanager.Client, secretId string, oldVersionId *string) (string, error) {
+func getOldSecretValue(ctx context.Context, svc *secretsmanager.Client, secretId string, oldVersionId *string) (string, error) {
 	// get the old version value
 	getOldSecretValueInput := &secretsmanager.GetSecretValueInput{
 		SecretId:  &secretId,
@@ -161,13 +161,13 @@ func updateSecretCustomLogGroups(ctx context.Context, secretId string) error {
 	}
 	svc := secretsmanager.NewFromConfig(awsConf)
 
-	oldVersionId, err := _getLatestOldSecretVersion(ctx, svc, secretId)
+	oldVersionId, err := getPreviousSecretVersion(ctx, svc, secretId)
 	if err != nil {
 		sugLog.Error("Failed to get the older custom log group secret version.")
 		return err
 	}
 
-	oldSecretValueStr, err := _getOldSecretValue(ctx, svc, secretId, oldVersionId)
+	oldSecretValueStr, err := getOldSecretValue(ctx, svc, secretId, oldVersionId)
 	if err != nil {
 		sugLog.Error("Failed to get the old custom log group secret version's value.")
 		return err
