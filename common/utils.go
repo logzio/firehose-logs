@@ -87,6 +87,7 @@ func FindDifferences(old, new []string) (toAdd, toRemove []string) {
 	return toAdd, toRemove
 }
 
+// GetSecretNameFromArn extracts a secret name from the given secret ARN
 func GetSecretNameFromArn(secretArn string) string {
 	var secretName string
 	if sugLog == nil {
@@ -108,6 +109,22 @@ func GetSecretNameFromArn(secretArn string) string {
 	return secretName
 }
 
+// ExtractCustomGroupsFromSecret extracts the custom log groups to monitor from the given secret value
+func ExtractCustomGroupsFromSecret(secretId, result string) (string, error) {
+	var secretValues map[string]string
+	err := json.Unmarshal([]byte(result), &secretValues)
+	if err != nil {
+		return "", err
+	}
+
+	customLogGroups, ok := secretValues["logzioCustomLogGroups"]
+	if !ok {
+		return "", fmt.Errorf("did not find logzioCustomLogGroups key in the secret %s", secretId)
+	}
+	return customLogGroups, nil
+}
+
+// GetCustomLogGroups returns the monitored custom log groups. If a secret was used, extracts the value from it and returns it
 func GetCustomLogGroups(secretEnabled, customLogGroupsPrmVal string) (string, error) {
 	if sugLog == nil {
 		initLogger()
@@ -126,17 +143,7 @@ func GetCustomLogGroups(secretEnabled, customLogGroupsPrmVal string) (string, er
 			return "", err
 		}
 
-		var secretValues map[string]string
-		err = json.Unmarshal([]byte(result), &secretValues)
-		if err != nil {
-			return "", err
-		}
-
-		customLogGroupsSecret, ok := secretValues["logzioCustomLogGroups"]
-		if !ok {
-			return "", fmt.Errorf("did not find logzioCustomLogGroups key in the secret %s", customLogGroupsPrmVal)
-		}
-		return customLogGroupsSecret, nil
+		return ExtractCustomGroupsFromSecret(customLogGroupsPrmVal, result)
 	}
 
 	return customLogGroupsPrmVal, nil

@@ -147,8 +147,9 @@ func _getOldSecretValue(ctx context.Context, svc *secretsmanager.Client, secretI
 		sugLog.Error("Failed to get the old value of the custom log groups secret")
 		return "", err
 	}
-	oldSecretValue := oldSecret.SecretString
-	return *oldSecretValue, nil
+	oldSecretValueJson := oldSecret.SecretString
+
+	return common.ExtractCustomGroupsFromSecret(secretId, *oldSecretValueJson)
 }
 
 func updateSecretCustomLogGroups(ctx context.Context, secretId string) error {
