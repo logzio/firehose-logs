@@ -44,7 +44,7 @@ jobs:
         run: |
           cd cfn-lambda
           cp -R ../common ./common
-          GOOS=linux GOARCH=amd64 go build -o bootstrap .
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bootstrap .
           zip -x "*_test.go" -r ../cfn-lambda.zip . 
           cd ..
 
@@ -52,7 +52,7 @@ jobs:
         run: |
           cd eventbridge-lambda
           cp -R ../common ./common
-          GOOS=linux GOARCH=amd64 go build -o bootstrap .
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bootstrap .
           zip -x "*_test.go" -r ../eventbridge-lambda.zip . 
           cd ..
 
