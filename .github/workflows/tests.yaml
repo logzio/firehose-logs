@@ -1,0 +1,185 @@
+name: Unit and E2E Tests
+on:
+  pull_request:
+  schedule:
+    # Run once a week on Sunday
+    - cron: "0 7 * * 0"
+
+jobs:
+
+#### Unit tests ####
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.22
+      - name: Install dependencies
+        run: |
+          go mod tidy
+          go install golang.org/x/tools/cmd/cover@v0.1.0
+      - name: Test CFN lambda
+        working-directory: ./cfn-lambda/handler
+        run: go test -v -race -covermode=atomic -coverprofile=coverage.out
+      - name: Test EventBridge lambda
+        working-directory: ./eventbridge-lambda/handler
+        run: go test -v -race -covermode=atomic -coverprofile=coverage.out
+      - name: Test common functions
+        working-directory: ./common
+        run: go test -v -race -covermode=atomic -coverprofile=coverage.out
+
+#### E2E Tests ####
+  e2e-tests:
+    needs: unit-tests  # Run e2e test only if unit tests passed
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: 'us-east-1'
+      TEST_VERSION: test
+    steps:
+      # Initialize env
+      - uses: actions/checkout@v4
+      - name: Setup Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.22
+      - name: Install dependencies
+        run: |
+          go mod tidy
+          go install golang.org/x/tools/cmd/cover@v0.1.0
+
+      # Generate the ZIP files
+      - name: Build CloudFormation Lambda function
+        working-directory: ./cfn-lambda
+        run: |
+          cp -R ../common ./common
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bootstrap .
+          zip -x "*_test.go" -r ../cfn-lambda.zip .
+      - name: Build and Zip EventBridge Lambda function
+        working-directory: ./eventbridge-lambda
+        run: |
+          cp -R ../common ./common
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bootstrap .
+          zip -x "*_test.go" -r ../eventbridge-lambda.zip .
+
+      # Setup and upload to AWS
+      - name: Setup AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Upload ZIP to S3
+        run: |
+          aws s3 cp ./cfn-lambda.zip s3://logzio-aws-integrations-${{ env.AWS_REGION }}/firehose-logs/${{ env.TEST_VERSION }}/cfn-lambda.zip --acl public-read
+          aws s3 cp ./eventbridge-lambda.zip s3://logzio-aws-integrations-${{ env.AWS_REGION }}/firehose-logs/${{ env.TEST_VERSION }}/eventbridge-lambda.zip --acl public-read
+
+      # Generate test data
+      - name: Create API Gateway service
+        id: create_api
+        run: |
+          # Create API
+          api_id=$(aws apigateway create-rest-api --name 'auto-test-firehose-log-api' --description 'Integration test for Firehose logs' --region ${{ env.AWS_REGION }} --query 'id' --output text)
+          
+          # Get the root resource (/ path)
+          resource_id=$(aws apigateway get-resources --rest-api-id $api_id --query 'items[0].id' --output text)
+          
+          # Add GET method
+          aws apigateway put-method --rest-api-id $api_id --resource-id $resource_id --http-method GET --authorization-type "NONE"
+          aws apigateway put-method-response --rest-api-id $api_id --resource-id $resource_id --http-method GET --status-code 200
+          
+          # Add Integration
+          aws apigateway put-integration --rest-api-id $api_id --resource-id $resource_id --http-method GET --type MOCK --request-templates '{ "application/json": "{\"statusCode\": 200}" }'
+          aws apigateway put-integration-response --rest-api-id $api_id --resource-id $resource_id --http-method GET --status-code 200 --selection-pattern "" --response-templates '{"application/json": "{\"statusCode\": 200, \"message\": \"Test msg\"}"}'
+          
+          # Deploy 
+          aws apigateway create-deployment --rest-api-id $api_id --stage-name test --stage-description 'Test stage' --description 'First deployment'
+          
+          # Enable Cloudwatch logging
+          aws apigateway update-stage --rest-api-id $api_id --stage-name 'test' --patch-operations 'op=replace,path=/*/*/logging/loglevel,value=INFO'
+          
+          # Keep the $api_id for next steps
+          echo "::set-output name=api_id::$api_id"
+
+      - name: Invoke the API to generate log group
+        run: curl -X GET https://$(echo ${{ steps.create_api.outputs.api_id }}).execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/
+
+      # Deploy test stack
+      - name: Update sam-template region and version vars
+        working-directory: ./cloudformation
+        run: |
+          grep -rli '<<REGION>>' * | xargs -i@ sed -i 's/<<REGION>>/${{ env.AWS_REGION }}/g' @
+          grep -rli '<<VERSION>>' * | xargs -i@ sed -i 's/<<VERSION>>/${{ env.TEST_VERSION }}/g' @
+
+      - name: Generate random id for the test
+        id: random_id
+        run: echo "::set-output name=random_id::$(echo $RANDOM)"
+
+      - name: Deploy test stack
+        id: create_stack
+        run: |
+          aws cloudformation deploy \
+          --template-file ./cloudformation/sam-template.yaml \
+          --stack-name auto-test-firehose-log \
+          --parameter-overrides logzioToken=${{ secrets.LOGZIO_SHIPPING_TOKEN }} logzioType=firehose_auto_test_$(echo ${{ steps.random_id.outputs.random_id }}) logzioListener=https://aws-firehose-logs-listener.logz.io services=apigateway customLogGroups=API-Gateway-Execution-Logs_$(echo ${{ steps.create_api.outputs.api_id }})/test \
+          --capabilities CAPABILITY_NAMED_IAM \
+          --disable-rollback
+
+      - name: Invoke the API to generate logs
+        run: curl -X GET https://$(echo ${{ steps.create_api.outputs.api_id }}).execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/
+
+      - name: Wait to allow data to get to logzio
+        run: sleep 240
+
+      # Run tests
+      - name: Run Go Tests
+        working-directory: ./tests
+        env:
+          LOGZIO_API_TOKEN: ${{ secrets.LOGZIO_API_TOKEN }}
+        run: go test -v ./e2e_test.go -args -logType=firehose_auto_test_${{ steps.random_id.outputs.random_id }}
+
+      # Update stack to test using secret for customLogGroups
+      - name: Create a secret with custom log group
+        id: create_secret
+        run: |
+          secret_arn=$(aws secretsmanager create-secret --name auto-test-firehose-log-secret-$(echo ${{ steps.create_api.outputs.api_id }}) --secret-string "{\"logzioCustomLogGroups\":\"API-Gateway-Execution-Logs_$(echo ${{ steps.create_api.outputs.api_id }})/test\"}" --query 'ARN')
+          echo "::set-output name=secret_arn::$secret_arn"
+
+      - name: Update Stack to use customLogGroups from secret
+        run: |
+          aws cloudformation update-stack \
+          --stack-name auto-test-firehose-log \
+          --capabilities CAPABILITY_NAMED_IAM \
+          --use-previous-template --parameters ParameterKey=customLogGroups,ParameterValue=$(echo ${{ steps.create_secret.outputs.secret_arn }}) ParameterKey=useCustomLogGroupsFromSecret,ParameterValue=true ParameterKey=logzioType,ParameterValue=firehose_auto_test_$(echo ${{ steps.random_id.outputs.random_id }})2 ParameterKey=logzioToken,UsePreviousValue=true ParameterKey=logzioListener,UsePreviousValue=true ParameterKey=services,UsePreviousValue=true
+
+      - name: Wait for stack to finish updating
+        run: aws cloudformation wait stack-update-complete --stack-name auto-test-firehose-log
+
+      - name: Invoke the API to generate logs
+        run: curl -X GET https://$(echo ${{ steps.create_api.outputs.api_id }}).execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/
+
+      - name: Wait to allow data to get to logzio
+        run: sleep 240
+
+      # Run tests
+      - name: Run Go Tests
+        working-directory: ./tests
+        env:
+          LOGZIO_API_TOKEN: ${{ secrets.LOGZIO_API_TOKEN }}
+        run: go test -v ./e2e_test.go -args -logType=firehose_auto_test_${{ steps.random_id.outputs.random_id }}2
+
+      # Cleanup
+      - name: Delete the API Gateway
+        if: ${{ always() && steps.create_api.outcome == 'success' }}
+        run: aws apigateway delete-rest-api --rest-api-id $(echo ${{ steps.create_api.outputs.api_id }})
+
+      - name: Delete Secret
+        if: ${{ always() && steps.create_secret.outcome == 'success' }}
+        run: aws secretsmanager delete-secret --secret-id auto-test-firehose-log-secret-$(echo ${{ steps.create_api.outputs.api_id }}) --force-delete-without-recovery
+
+      - name: Delete Stack
+        if: ${{ always() && steps.create_stack.outcome == 'success' }}
+        run: |
+          aws cloudformation delete-stack \
+          --stack-name auto-test-firehose-log

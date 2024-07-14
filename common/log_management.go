@@ -4,49 +4,11 @@ import (
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 	"go.uber.org/zap"
 	"os"
 )
 
 var sugLog *zap.SugaredLogger
-
-func PutSubscriptionFilter(logGroups []string, logsClient *cloudwatchlogs.CloudWatchLogs) []string {
-	// Early return if logsClient is nil to avoid panic
-	if logsClient == nil {
-		fmt.Println("CloudWatch Logs client is nil")
-		return nil
-	}
-
-	// Initialize logger if it's nil
-	if sugLog == nil {
-		initLogger()
-	}
-
-	destinationArn := os.Getenv(envFirehoseArn)
-	roleArn := os.Getenv(envPutSubscriptionFilterRole)
-	filterPattern := ""
-	filterName := subscriptionFilterName
-	added := make([]string, 0)
-	for _, logGroup := range logGroups {
-		_, err := logsClient.PutSubscriptionFilter(&cloudwatchlogs.PutSubscriptionFilterInput{
-			DestinationArn: &destinationArn,
-			FilterName:     &filterName,
-			LogGroupName:   &logGroup,
-			FilterPattern:  &filterPattern,
-			RoleArn:        &roleArn,
-		})
-
-		if err != nil {
-			sugLog.Error("Error while trying to add subscription filter for ", logGroup, ": ", err.Error())
-			continue
-		}
-
-		added = append(added, logGroup)
-	}
-
-	return added
-}
 
 // Ensure sugLog is safely initialized before use
 func initLogger() {
@@ -59,43 +21,10 @@ func initLogger() {
 	sugLog = logger.Sugar()
 }
 
-func DeleteSubscriptionFilter(logGroups []string, logsClient *cloudwatchlogs.CloudWatchLogs) []string {
-	// Early return if logsClient is nil to avoid panic
-	if logsClient == nil {
-		fmt.Println("CloudWatch Logs client is nil")
-		return nil
-	}
-
-	// Initialize logger if it's nil
-	if sugLog == nil {
-		initLogger()
-	}
-
-	filterName := subscriptionFilterName
-	deleted := make([]string, 0)
-	for _, logGroup := range logGroups {
-		_, err := logsClient.DeleteSubscriptionFilter(&cloudwatchlogs.DeleteSubscriptionFilterInput{
-			FilterName:   &filterName,
-			LogGroupName: &logGroup,
-		})
-
-		if err != nil {
-			sugLog.Error("Error while trying to delete subscription filter for ", logGroup, ": ", err.Error())
-			continue
-		}
-
-		deleted = append(deleted, logGroup)
-		sugLog.Info("Detected the following services for deletion2: ", deleted)
-
-	}
-
-	return deleted
-}
-
 func GetSession() (*session.Session, error) {
 	sess, err := session.NewSessionWithOptions(session.Options{
 		Config: aws.Config{
-			Region: aws.String(os.Getenv(envAwsRegion)),
+			Region: aws.String(os.Getenv(EnvAwsRegion)),
 		},
 	})
 
