@@ -5,6 +5,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 	"os"
+	"sync"
 )
 
 func getLogGroups(services []string, logsClient *cloudwatchlogs.CloudWatchLogs) []string {
@@ -92,23 +93,34 @@ func PutSubscriptionFilter(logGroups []string, logsClient *cloudwatchlogs.CloudW
 	filterPattern := ""
 	filterName := subscriptionFilterName
 	added := make([]string, 0)
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
 	for _, logGroup := range logGroups {
-		_, err := logsClient.PutSubscriptionFilter(&cloudwatchlogs.PutSubscriptionFilterInput{
-			DestinationArn: &destinationArn,
-			FilterName:     &filterName,
-			LogGroupName:   &logGroup,
-			FilterPattern:  &filterPattern,
-			RoleArn:        &roleArn,
-		})
+		wg.Add(1)
+		go func(logGroup string) {
+			defer wg.Done()
+			_, err := logsClient.PutSubscriptionFilter(&cloudwatchlogs.PutSubscriptionFilterInput{
+				DestinationArn: &destinationArn,
+				FilterName:     &filterName,
+				LogGroupName:   &logGroup,
+				FilterPattern:  &filterPattern,
+				RoleArn:        &roleArn,
+			})
 
-		if err != nil {
-			sugLog.Error("Error while trying to add subscription filter for ", logGroup, ": ", err.Error())
-			continue
-		}
+			if err != nil {
+				sugLog.Error("Error while trying to add subscription filter for ", logGroup, ": ", err.Error())
+				return
+			}
 
-		added = append(added, logGroup)
+			mu.Lock()
+			added = append(added, logGroup)
+			mu.Unlock()
+
+		}(logGroup)
 	}
-
+	wg.Wait()
 	return added
 }
 
