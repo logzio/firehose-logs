@@ -98,6 +98,7 @@ Once new logs are added to your chosen log group, they will be sent to your Logz
 > If you've used the `services` field, you'll have to **wait 6 minutes** before creating new log groups for your chosen services. This is due to cold start and custom resource invocation, that can cause the Lambda to behave unexpectedly.
 
 ### Changelog:
+- **0.2.1**: Parallelized subscription filter updates to improve performance.
 - **0.2.0**: Option to provide `customLogGroups` exceeding 4KB.
 - **0.1.0**:
   Introduced the ability to directly update service and custom log parameters within the stack.

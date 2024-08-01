@@ -232,6 +232,6 @@ func handleFirstInvocation() error {
 	}
 
 	sugLog.Info("Following these log groups: ", added)
-
+	
 	return nil
 }
