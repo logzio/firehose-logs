@@ -212,27 +212,26 @@ func handleFirstInvocation() error {
 		return err
 	}
 
-	go func() {
-		added := make([]string, 0)
-		servicesToAdd := common.GetServices()
-		if servicesToAdd != nil {
-			newAdded, err := common.AddServices(sess, servicesToAdd)
-			added = append(added, newAdded...)
-			if err != nil {
-				sugLog.Error(err.Error())
-			}
+	added := make([]string, 0)
+	servicesToAdd := common.GetServices()
+	if servicesToAdd != nil {
+		newAdded, err := common.AddServices(sess, servicesToAdd)
+		added = append(added, newAdded...)
+		if err != nil {
+			sugLog.Error(err.Error())
 		}
+	}
 
-		pathsToAdd := common.GetCustomPaths()
-		if pathsToAdd != nil {
-			newAdded, err := common.AddCustom(sess, pathsToAdd, added)
-			added = append(added, newAdded...)
-			if err != nil {
-				sugLog.Error(err.Error())
-			}
+	pathsToAdd := common.GetCustomPaths()
+	if pathsToAdd != nil {
+		newAdded, err := common.AddCustom(sess, pathsToAdd, added)
+		added = append(added, newAdded...)
+		if err != nil {
+			sugLog.Error(err.Error())
 		}
+	}
 
-		sugLog.Info("Following these log groups: ", added)
-	}()
+	sugLog.Info("Following these log groups: ", added)
+	
 	return nil
 }
