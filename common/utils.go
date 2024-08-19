@@ -52,6 +52,7 @@ func GetServicesMap() map[string]string {
 		"lambda":           "/aws/lambda/",
 		"macie":            "/aws/macie/",
 		"amazon-mq":        "/aws/amazonmq/broker/",
+		"batch":            "/aws/batch/",
 	}
 }
 
