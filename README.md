@@ -4,7 +4,7 @@ This project deploys instrumentation that allows shipping Cloudwatch logs to Log
 
 ## Overview
 
-This project will uses a Cloudformation template to create a Stack that deploys:
+This project will use a Cloudformation template to create a Stack that deploys:
 * Firehose Delivery Stream with Logz.io as the stream's destination.
 * Lambda function that adds Subscription Filters to Cloudwatch Log Groups, as defined by user's input.
 * Roles, log groups, and other resources that are necessary for this instrumentation.
