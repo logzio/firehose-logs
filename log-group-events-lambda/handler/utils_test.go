@@ -8,6 +8,19 @@ import (
 )
 
 func TestValidateRequired(t *testing.T) {
+	err := os.Unsetenv(envFirehoseArn)
+	if err != nil {
+		return
+	}
+	err = os.Unsetenv(envAccountId)
+	if err != nil {
+		return
+	}
+	err = os.Unsetenv(envAwsPartition)
+	if err != nil {
+		return
+	}
+
 	/* Missing all 3 required env variable */
 	result := validateRequired()
 
@@ -17,7 +30,7 @@ func TestValidateRequired(t *testing.T) {
 		t.Fatal("Expected an error, got nil")
 	}
 
-	err := os.Setenv(envFirehoseArn, "test-arn")
+	err = os.Setenv(envFirehoseArn, "test-arn")
 	if err != nil {
 		return
 	}
