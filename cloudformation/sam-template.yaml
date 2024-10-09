@@ -78,7 +78,7 @@ Resources:
   # The lambda functions
   CfnLambdaFunction:
     Type: 'AWS::Lambda::Function'
-    DependsOn: logzioFirehose
+    DependsOn: LogGroupEventsLambdaFunction
     Properties:
       Code:
         S3Bucket: logzio-aws-integrations-<<REGION>>
@@ -86,7 +86,7 @@ Resources:
       FunctionName: !Join [ '-', [ !Ref AWS::StackName, 'cfn-lambda' ] ]
       Handler: bootstrap
       Runtime: provided.al2
-      Role: !GetAtt lambdaExecutionRole.Arn
+      Role: !GetAtt cfnLambdaExecutionRole.Arn
       Timeout: !Ref triggerLambdaTimeout
       MemorySize: !Ref triggerLambdaMemory
       ReservedConcurrentExecutions: 1
@@ -101,17 +101,17 @@ Resources:
           LOG_LEVEL: !Ref triggerLambdaLogLevel
           PUT_SF_ROLE: !GetAtt firehosePutSubscriptionFilterRole.Arn
 
-  EventBridgeLambdaFunction:
+  LogGroupEventsLambdaFunction:
     Type: 'AWS::Lambda::Function'
     DependsOn: logzioFirehose
     Properties:
       Code:
         S3Bucket: logzio-aws-integrations-<<REGION>>
-        S3Key: firehose-logs/<<VERSION>>/eventbridge-lambda.zip
-      FunctionName: !Join [ '-', [ !Ref AWS::StackName, 'eventbridge-lambda' ] ]
+        S3Key: firehose-logs/<<VERSION>>/log-group-events-lambda.zip
+      FunctionName: !Join [ '-', [ !Ref AWS::StackName, 'log-group-events-lambda' ] ]
       Handler: bootstrap
       Runtime: provided.al2
-      Role: !GetAtt lambdaExecutionRole.Arn
+      Role: !GetAtt logGroupLambdaExecutionRole.Arn
       Timeout: !Ref triggerLambdaTimeout
       MemorySize: !Ref triggerLambdaMemory
       ReservedConcurrentExecutions: 1
@@ -127,7 +127,32 @@ Resources:
           PUT_SF_ROLE: !GetAtt firehosePutSubscriptionFilterRole.Arn
 
   # Lambda permissions for log groups and using firehose
-  lambdaExecutionRole:
+  cfnLambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Join [ '-', [ 'logzioRole', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: !Join [ '-', [ 'logzioRole', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'lambda:InvokeFunction'
+                Resource:
+                  - !GetAtt LogGroupEventsLambdaFunction.Arn
+
+  logGroupLambdaExecutionRole:
     Type: 'AWS::IAM::Role'
     Properties:
       RoleName: !Join [ '-', [ 'logzioRole', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
@@ -204,8 +229,8 @@ Resources:
       Name: !Join [ '-', [ 'logGroupCreated', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
       State: ENABLED
       Targets:
-        - Arn: !GetAtt EventBridgeLambdaFunction.Arn
-          Id: 'EventBridgeLambdaFunctionTarget'
+        - Arn: !GetAtt LogGroupEventsLambdaFunction.Arn
+          Id: 'LogGroupEventsLambdaFunctionTarget'
 
   secretChangeEvent:
     Condition: secretChangeEventsEnabled
@@ -228,7 +253,7 @@ Resources:
       Name: !Join [ '-', [ 'customLogGroupsSecretChanged', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
       State: ENABLED
       Targets:
-        - Arn: !GetAtt EventBridgeLambdaFunction.Arn
+        - Arn: !GetAtt LogGroupEventsLambdaFunction.Arn
           Id: 'SecretChangeLambdaTarget'
 
   # Permissions to trigger events
@@ -236,7 +261,7 @@ Resources:
     Condition: createEventbridgeTrigger
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref EventBridgeLambdaFunction
+      FunctionName: !Ref LogGroupEventsLambdaFunction
       Action: 'lambda:InvokeFunction'
       Principal: 'events.amazonaws.com'
       SourceArn: !GetAtt logGroupCreationEvent.Arn
@@ -246,7 +271,7 @@ Resources:
     Type: AWS::Lambda::Permission
     Properties:
       Action: 'lambda:InvokeFunction'
-      FunctionName: !Ref EventBridgeLambdaFunction
+      FunctionName: !Ref LogGroupEventsLambdaFunction
       Principal: 'events.amazonaws.com'
       SourceArn: !GetAtt secretChangeEvent.Arn
 

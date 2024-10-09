@@ -23,8 +23,8 @@ jobs:
       - name: Test CFN lambda
         working-directory: ./cfn-lambda/handler
         run: go test -v -race -covermode=atomic -coverprofile=coverage.out
-      - name: Test EventBridge lambda
-        working-directory: ./eventbridge-lambda/handler
+      - name: Test LogGroups events lambda lambda
+        working-directory: ./log-group-events-lambda/handler
         run: go test -v -race -covermode=atomic -coverprofile=coverage.out
       - name: Test common functions
         working-directory: ./common
@@ -54,14 +54,16 @@ jobs:
         working-directory: ./cfn-lambda
         run: |
           cp -R ../common ./common
+          cp -R ../logger ./logger
           GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bootstrap .
           zip -x "*_test.go" -r ../cfn-lambda.zip .
-      - name: Build and Zip EventBridge Lambda function
-        working-directory: ./eventbridge-lambda
+      - name: Build and Zip LogGroups events Lambda function
+        working-directory: ./log-group-events-lambda
         run: |
           cp -R ../common ./common
+          cp -R ../logger ./logger
           GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bootstrap .
-          zip -x "*_test.go" -r ../eventbridge-lambda.zip .
+          zip -x "*_test.go" -r ../log-group-events-lambda.zip .
 
       # Setup and upload to AWS
       - name: Setup AWS
@@ -73,7 +75,7 @@ jobs:
       - name: Upload ZIP to S3
         run: |
           aws s3 cp ./cfn-lambda.zip s3://logzio-aws-integrations-${{ env.AWS_REGION }}/firehose-logs/${{ env.TEST_VERSION }}/cfn-lambda.zip --acl public-read
-          aws s3 cp ./eventbridge-lambda.zip s3://logzio-aws-integrations-${{ env.AWS_REGION }}/firehose-logs/${{ env.TEST_VERSION }}/eventbridge-lambda.zip --acl public-read
+          aws s3 cp ./log-group-events-lambda.zip s3://logzio-aws-integrations-${{ env.AWS_REGION }}/firehose-logs/${{ env.TEST_VERSION }}/log-group-events-lambda.zip --acl public-read
 
       # Generate test data
       - name: Create API Gateway service

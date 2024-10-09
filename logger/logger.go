@@ -19,6 +19,13 @@ const (
 	defaultLogLevel = LogLevelInfo
 )
 
+func GetSugaredLogger() *zap.SugaredLogger {
+	// Basic logger initialization, replace with your actual logger configuration
+	logger := GetLogger()
+	logger.Sync()
+	return logger.Sugar()
+}
+
 func GetLogger() *zap.Logger {
 	logLevel := getLogLevel()
 	cfg := zap.Config{

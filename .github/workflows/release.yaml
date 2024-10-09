@@ -41,19 +41,21 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build CloudFormation Lambda function
+        working-directory: ./cfn-lambda
         run: |
-          cd cfn-lambda
           cp -R ../common ./common
+          cp -R ../logger ./logger
           GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bootstrap .
           zip -x "*_test.go" -r ../cfn-lambda.zip . 
           cd ..
 
-      - name: Build and Zip EventBridge Lambda function with common dependencies
+      - name: Build and Zip LogGroups events Lambda function with common dependencies
+        working-directory: ./log-group-events-lambda
         run: |
-          cd eventbridge-lambda
           cp -R ../common ./common
+          cp -R ../logger ./logger
           GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bootstrap .
-          zip -x "*_test.go" -r ../eventbridge-lambda.zip . 
+          zip -x "*_test.go" -r ../log-group-events-lambda.zip . 
           cd ..
 
       - name: Upload Lambdas ZIP as Artifact
@@ -62,12 +64,14 @@ jobs:
           name: lambdas
           path: |
             cfn-lambda.zip
-            eventbridge-lambda.zip
+            log-group-events-lambda.zip
 
       - name: Cleanup common folders
         run: |
           rm -rf cfn-lambda/common
-          rm -rf eventbridge-lambda/common
+          rm -rf cfn-lambda/logger
+          rm -rf log-group-events-lambda/common
+          rm -rf log-group-events-lambda/logger
 
   # Upload built artifacts to S3
   upload_to_buckets:
@@ -127,9 +131,9 @@ jobs:
         run: |
           aws s3 cp ./cfn-lambda.zip s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release.tag_name }}/cfn-lambda.zip --acl public-read
 
-      - name: Upload EventBridge Lambda ZIP to S3
+      - name: Upload LogGroups events Lambda ZIP to S3
         run: |
-          aws s3 cp ./eventbridge-lambda.zip s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release.tag_name }}/eventbridge-lambda.zip --acl public-read
+          aws s3 cp ./log-group-events-lambda.zip s3://logzio-aws-integrations-${{ matrix.aws_region }}/firehose-logs/${{ github.event.release.tag_name }}/log-group-events-lambda.zip --acl public-read
 
       - name: Prepare SAM Template
         run: |
