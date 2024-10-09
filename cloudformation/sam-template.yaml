@@ -130,7 +130,7 @@ Resources:
   cfnLambdaExecutionRole:
     Type: 'AWS::IAM::Role'
     Properties:
-      RoleName: !Join [ '-', [ 'logzioRole', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
+      RoleName: !Join [ '-', [ 'logzioCfnLambdaRole', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -155,7 +155,7 @@ Resources:
   logGroupLambdaExecutionRole:
     Type: 'AWS::IAM::Role'
     Properties:
-      RoleName: !Join [ '-', [ 'logzioRole', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
+      RoleName: !Join [ '-', [ 'logzioEventsLambdaRole', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -210,6 +210,7 @@ Resources:
       Services: !Ref services
       CustomLogGroups: !Ref customLogGroups
       SecretEnabled: !Ref useCustomLogGroupsFromSecret
+      StackName: !Ref AWS::StackName
 
   logGroupCreationEvent:
     Condition: createEventbridgeTrigger

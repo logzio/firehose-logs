@@ -8,34 +8,34 @@ import (
 	"github.com/logzio/firehose-logs/common"
 )
 
-const lambdaToTrigger = "log-group-events-lambda"
+const lambdaToTrigger = "-log-group-events-lambda"
 
 type LambdaClient struct {
 	Function lambdaiface.LambdaAPI
 }
 
-func invokeLambdaSynchronously(ctx context.Context, payload []byte) (string, error) {
+func invokeLambdaSynchronously(ctx context.Context, payload []byte, stackName string) (string, error) {
 	client, err := createLambdaClient()
 	if err != nil {
 		sugLog.Error("Error creating lambda client: ", err.Error())
 		return "", err
 	}
 
-	res, err := client.invokeLambda(ctx, lambdaToTrigger, "RequestResponse", payload)
+	res, err := client.invokeLambda(ctx, stackName+lambdaToTrigger, "RequestResponse", payload)
 	if err != nil {
 		return "", err
 	}
 	return string(res.Payload), nil
 }
 
-func invokeLambdaAsynchronously(ctx context.Context, payload []byte) error {
+func invokeLambdaAsynchronously(ctx context.Context, payload []byte, stackName string) error {
 	client, err := createLambdaClient()
 	if err != nil {
 		sugLog.Error("Error creating lambda client: ", err.Error())
 		return err
 	}
 
-	_, err = client.invokeLambda(ctx, lambdaToTrigger, "Event", payload)
+	_, err = client.invokeLambda(ctx, stackName+lambdaToTrigger, "Event", payload)
 	return err
 }
 

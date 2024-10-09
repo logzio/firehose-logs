@@ -52,7 +52,9 @@ func createCustomResource(ctx context.Context, event cfn.Event) (physicalResourc
 		return physicalResourceID, nil, err
 	}
 
-	err = invokeLambdaAsynchronously(ctx, jsonPayload)
+	stackName := event.ResourceProperties["StackName"].(string)
+
+	err = invokeLambdaAsynchronously(ctx, jsonPayload, stackName)
 	if err != nil {
 		sugLog.Error("Error invoking lambda: ", err.Error())
 		return physicalResourceID, nil, err
@@ -92,7 +94,9 @@ func updateCustomResource(ctx context.Context, event cfn.Event) (physicalResourc
 		return physicalResourceID, nil, err
 	}
 
-	err = invokeLambdaAsynchronously(ctx, jsonPayload)
+	stackName := event.ResourceProperties["StackName"].(string)
+
+	err = invokeLambdaAsynchronously(ctx, jsonPayload, stackName)
 	if err != nil {
 		sugLog.Error("Error invoking lambda: ", err.Error())
 		return physicalResourceID, nil, err
@@ -119,7 +123,9 @@ func deleteCustomResource(ctx context.Context, event cfn.Event) (physicalResourc
 		return physicalResourceID, nil, err
 	}
 
-	_, err = invokeLambdaSynchronously(ctx, jsonPayload)
+	stackName := event.ResourceProperties["StackName"].(string)
+
+	_, err = invokeLambdaSynchronously(ctx, jsonPayload, stackName)
 	if err != nil {
 		sugLog.Error("Error invoking lambda or executing function: ", err.Error())
 		return physicalResourceID, nil, err
