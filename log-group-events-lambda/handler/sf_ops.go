@@ -77,6 +77,7 @@ func (cwLogsClient *CloudWatchLogsClient) addSubscriptionFilter(logGroups []stri
 				mu.Lock()
 				added = append(added, logGroup)
 				mu.Unlock()
+				return
 			}
 		}(logGroup)
 	}
@@ -158,6 +159,7 @@ func (cwLogsClient *CloudWatchLogsClient) removeSubscriptionFilter(logGroups []s
 				mu.Lock()
 				deleted = append(deleted, logGroup)
 				mu.Unlock()
+				return
 			}
 		}(logGroup)
 	}
