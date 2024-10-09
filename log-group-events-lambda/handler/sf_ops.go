@@ -1,13 +1,16 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs/cloudwatchlogsiface"
 	"github.com/hashicorp/go-multierror"
 	"github.com/logzio/firehose-logs/common"
 	"os"
 	"sync"
+	"time"
 )
 
 type CloudWatchLogsClient struct {
@@ -46,21 +49,35 @@ func (cwLogsClient *CloudWatchLogsClient) addSubscriptionFilter(logGroups []stri
 		wg.Add(1)
 		go func(logGroup string) {
 			defer wg.Done()
-			_, err := cwLogsClient.Client.PutSubscriptionFilter(&cloudwatchlogs.PutSubscriptionFilterInput{
-				DestinationArn: &destinationArn,
-				FilterName:     &filterName,
-				LogGroupName:   &logGroup,
-				FilterPattern:  &filterPattern,
-				RoleArn:        &roleArn,
-			})
-			if err != nil {
-				sugLog.Errorf("Error while trying to add subscription filter for %s: %v", logGroup, err.Error())
-				result = multierror.Append(result, err)
-				return
+
+			retries := 0
+			for {
+				_, err := cwLogsClient.Client.PutSubscriptionFilter(&cloudwatchlogs.PutSubscriptionFilterInput{
+					DestinationArn: &destinationArn,
+					FilterName:     &filterName,
+					LogGroupName:   &logGroup,
+					FilterPattern:  &filterPattern,
+					RoleArn:        &roleArn,
+				})
+
+				// retry mechanism
+				if err != nil {
+					var awsErr awserr.Error
+					ok := errors.As(err, &awsErr)
+					if ok && awsErr.Code() == "ThrottlingException" && retries < maxRetries {
+						time.Sleep(time.Second * time.Duration(retries*retries))
+						retries++
+						continue
+					} else {
+						sugLog.Errorf("Error while trying to add subscription filter for %s: %v", logGroup, err.Error())
+						result = multierror.Append(result, err)
+						return
+					}
+				}
+				mu.Lock()
+				added = append(added, logGroup)
+				mu.Unlock()
 			}
-			mu.Lock()
-			added = append(added, logGroup)
-			mu.Unlock()
 		}(logGroup)
 	}
 	wg.Wait()
@@ -116,19 +133,32 @@ func (cwLogsClient *CloudWatchLogsClient) removeSubscriptionFilter(logGroups []s
 		wg.Add(1)
 		go func(logGroup string) {
 			defer wg.Done()
-			_, err := cwLogsClient.Client.DeleteSubscriptionFilter(&cloudwatchlogs.DeleteSubscriptionFilterInput{
-				FilterName:   &filterName,
-				LogGroupName: &logGroup,
-			})
 
-			if err != nil {
-				sugLog.Errorf("Error while trying to delete subscription filter for %s: %v", logGroup, err.Error())
-				result = multierror.Append(result, err)
-				return
+			retries := 0
+			for {
+				_, err := cwLogsClient.Client.DeleteSubscriptionFilter(&cloudwatchlogs.DeleteSubscriptionFilterInput{
+					FilterName:   &filterName,
+					LogGroupName: &logGroup,
+				})
+
+				// retry mechanism
+				if err != nil {
+					var awsErr awserr.Error
+					ok := errors.As(err, &awsErr)
+					if ok && awsErr.Code() == "ThrottlingException" && retries < maxRetries {
+						time.Sleep(time.Second * time.Duration(retries*retries))
+						retries++
+						continue
+					} else {
+						sugLog.Errorf("Error while trying to delete subscription filter for %s: %v", logGroup, err.Error())
+						result = multierror.Append(result, err)
+						return
+					}
+				}
+				mu.Lock()
+				deleted = append(deleted, logGroup)
+				mu.Unlock()
 			}
-			mu.Lock()
-			deleted = append(deleted, logGroup)
-			mu.Unlock()
 		}(logGroup)
 	}
 	wg.Wait()

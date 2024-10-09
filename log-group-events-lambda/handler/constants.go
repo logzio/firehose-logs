@@ -12,4 +12,5 @@ const (
 	emptyString            = ""
 	lambdaPrefix           = "/aws/lambda/"
 	subscriptionFilterName = "logzio_firehose"
+	maxRetries             = 10
 )
