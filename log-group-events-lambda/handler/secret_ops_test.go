@@ -40,13 +40,6 @@ func (m *MockSecretManagerClient) ListSecretVersionIds(ctx context.Context, para
 }
 
 func setupSecretTest() (ctx context.Context, mockClient *MockSecretManagerClient) {
-	/* Setup logger */
-	sugLog = lp.GetSugaredLogger()
-
-	return context.Background(), new(MockSecretManagerClient)
-}
-
-func TestGetSecretNameFromArn(t *testing.T) {
 	err := os.Setenv(common.EnvAwsRegion, "us-east-1")
 	if err != nil {
 		return
@@ -56,6 +49,17 @@ func TestGetSecretNameFromArn(t *testing.T) {
 		return
 	}
 
+	/* Setup config */
+	envConfig = NewConfig()
+
+	/* Setup logger */
+	sugLog = lp.GetSugaredLogger()
+
+	return context.Background(), new(MockSecretManagerClient)
+}
+
+func TestGetSecretNameFromArn(t *testing.T) {
+	setupSecretTest()
 	tests := []struct {
 		name               string
 		arn                string

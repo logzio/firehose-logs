@@ -25,10 +25,28 @@ func (m *MockSecretCacheClient) GetSecretString(secretName string) (string, erro
 }
 
 func setupLGTest() (cwClient *CloudWatchLogsClient, secretCacheClient *MockSecretCacheClient) {
-	err := os.Setenv(envFunctionName, "g2")
+	err := os.Setenv(envFirehoseArn, "test-arn")
 	if err != nil {
 		return
 	}
+
+	err = os.Setenv(envAccountId, "aws-account-id")
+	if err != nil {
+		return
+	}
+
+	err = os.Setenv(envAwsPartition, "test-partition")
+	if err != nil {
+		return
+	}
+
+	err = os.Setenv(envFunctionName, "g2")
+	if err != nil {
+		return
+	}
+
+	/* Setup config */
+	envConfig = NewConfig()
 
 	/* Setup logger */
 	sugLog = lp.GetSugaredLogger()
@@ -40,14 +58,22 @@ func setupLGTest() (cwClient *CloudWatchLogsClient, secretCacheClient *MockSecre
 
 func TestGetServices(t *testing.T) {
 	/* No services */
+	err := os.Unsetenv(common.EnvServices)
+	if err != nil {
+		return
+	}
+
+	setupLGTest()
+
 	result := getServices()
 	assert.Nil(t, result)
 
 	/* Has services */
-	err := os.Setenv(common.EnvServices, "rds, cloudwatch, custom")
+	err = os.Setenv(common.EnvServices, "rds, cloudwatch, custom")
 	if err != nil {
 		return
 	}
+	setupLGTest()
 
 	result = getServices()
 	assert.Equal(t, []string{"rds", "cloudwatch", "custom"}, result)
@@ -88,56 +114,6 @@ func TestGetServicesLogGroups(t *testing.T) {
 			result := getServicesLogGroups(test.services, cwClient)
 			sort.Strings(result)
 			assert.Equal(t, test.expectedLogGroups, result)
-		})
-	}
-}
-
-func TestGetLogGroupsWithPrefix(t *testing.T) {
-	cwClient, _ := setupLGTest()
-
-	tests := []struct {
-		name           string
-		prefix         string
-		expectedGroups []string
-		expectedError  bool
-	}{
-		{
-			name:           "some prefix",
-			prefix:         "/aws/apigateway/",
-			expectedGroups: []string{"/aws/apigateway/g1"},
-			expectedError:  false,
-		},
-		{
-			name:           "no log groups",
-			prefix:         "/aws/codebuild/",
-			expectedGroups: []string{},
-			expectedError:  false,
-		},
-		{
-			name:           "don't return this function log group",
-			prefix:         "/aws/lambda/",
-			expectedGroups: []string{"/aws/lambda/g1"},
-			expectedError:  false,
-		},
-		{
-			name:           "failed to get log groups",
-			prefix:         "/aws/error/test/",
-			expectedGroups: nil,
-			expectedError:  true,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			result, err := getLogGroupsWithPrefix(test.prefix, cwClient)
-			sort.Strings(result)
-			assert.Equal(t, test.expectedGroups, result)
-
-			if test.expectedError {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
-			}
 		})
 	}
 }

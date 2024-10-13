@@ -8,13 +8,13 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs/cloudwatchlogsiface"
 	"github.com/hashicorp/go-multierror"
 	"github.com/logzio/firehose-logs/common"
-	"os"
 	"sync"
 	"time"
 )
 
 type CloudWatchLogsClient struct {
 	Client cloudwatchlogsiface.CloudWatchLogsAPI
+	Mutex  sync.Mutex
 }
 
 func getCloudWatchLogsClient() (*CloudWatchLogsClient, error) {
@@ -30,19 +30,18 @@ func (cwLogsClient *CloudWatchLogsClient) addSubscriptionFilter(logGroups []stri
 		return nil, fmt.Errorf("CloudWatch Logs client is nil")
 	}
 
-	destinationArn := os.Getenv(envFirehoseArn)
-	roleArn := os.Getenv(envPutSubscriptionFilterRole)
+	destinationArn := envConfig.destinationArn
+	roleArn := envConfig.roleArn
 	filterPattern := ""
 	filterName := subscriptionFilterName
 	added := make([]string, 0, len(logGroups))
 	var result *multierror.Error
 
 	var wg sync.WaitGroup
-	var mu sync.Mutex
 
 	for _, logGroup := range logGroups {
 		// Prevent a situation where we put subscription filter on the trigger function
-		if logGroup == lambdaPrefix+os.Getenv(envFunctionName) {
+		if logGroup == envConfig.thisFunctionLogGroup {
 			continue
 		}
 
@@ -74,9 +73,9 @@ func (cwLogsClient *CloudWatchLogsClient) addSubscriptionFilter(logGroups []stri
 						return
 					}
 				}
-				mu.Lock()
+				cwLogsClient.Mutex.Lock()
 				added = append(added, logGroup)
-				mu.Unlock()
+				cwLogsClient.Mutex.Unlock()
 				return
 			}
 		}(logGroup)
@@ -128,7 +127,6 @@ func (cwLogsClient *CloudWatchLogsClient) removeSubscriptionFilter(logGroups []s
 	var result *multierror.Error
 
 	var wg sync.WaitGroup
-	var mu sync.Mutex
 
 	for _, logGroup := range logGroups {
 		wg.Add(1)
@@ -156,9 +154,9 @@ func (cwLogsClient *CloudWatchLogsClient) removeSubscriptionFilter(logGroups []s
 						return
 					}
 				}
-				mu.Lock()
+				cwLogsClient.Mutex.Lock()
 				deleted = append(deleted, logGroup)
-				mu.Unlock()
+				cwLogsClient.Mutex.Unlock()
 				return
 			}
 		}(logGroup)
@@ -166,4 +164,35 @@ func (cwLogsClient *CloudWatchLogsClient) removeSubscriptionFilter(logGroups []s
 	wg.Wait()
 
 	return deleted, result.ErrorOrNil()
+}
+
+// getLogGroupsWithPrefix returns a list of log groups with the given prefix from cw client
+func (cwLogsClient *CloudWatchLogsClient) getLogGroupsWithPrefix(prefix string) ([]string, error) {
+	var nextToken *string
+	logGroups := make([]string, 0)
+	for {
+		describeOutput, err := cwLogsClient.Client.DescribeLogGroups(&cloudwatchlogs.DescribeLogGroupsInput{
+			LogGroupNamePrefix: &prefix,
+			NextToken:          nextToken,
+		})
+
+		if err != nil {
+			return nil, err
+		}
+		if describeOutput != nil {
+			nextToken = describeOutput.NextToken
+			for _, logGroup := range describeOutput.LogGroups {
+				// Prevent a situation where we put subscription filter on the trigger and shipper function
+				if *logGroup.LogGroupName != envConfig.thisFunctionLogGroup {
+					logGroups = append(logGroups, *logGroup.LogGroupName)
+				}
+			}
+		}
+
+		if nextToken == nil {
+			break
+		}
+	}
+
+	return logGroups, nil
 }

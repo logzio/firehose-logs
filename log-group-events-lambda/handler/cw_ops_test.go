@@ -8,6 +8,7 @@ import (
 	lp "github.com/logzio/firehose-logs/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"os"
 	"sort"
 	"testing"
 )
@@ -87,6 +88,24 @@ func (m *MockCloudWatchLogsClient) DescribeLogGroups(input *cloudwatchlogs.Descr
 }
 
 func setupSFTest() {
+	err := os.Setenv(envFirehoseArn, "test-arn")
+	if err != nil {
+		return
+	}
+
+	err = os.Setenv(envAccountId, "aws-account-id")
+	if err != nil {
+		return
+	}
+
+	err = os.Setenv(envAwsPartition, "test-partition")
+	if err != nil {
+		return
+	}
+
+	/* Setup config */
+	envConfig = NewConfig()
+
 	/* Setup logger */
 	sugLog = lp.GetSugaredLogger()
 }
@@ -256,6 +275,56 @@ func TestDeleteSubscriptionFilters(t *testing.T) {
 				assert.NotNil(t, err, "Expected an error but got nil")
 			} else {
 				assert.Nil(t, err, "Expected error to be nil but got %v", err)
+			}
+		})
+	}
+}
+
+func TestGetLogGroupsWithPrefix(t *testing.T) {
+	cwClient, _ := setupLGTest()
+
+	tests := []struct {
+		name           string
+		prefix         string
+		expectedGroups []string
+		expectedError  bool
+	}{
+		{
+			name:           "some prefix",
+			prefix:         "/aws/apigateway/",
+			expectedGroups: []string{"/aws/apigateway/g1"},
+			expectedError:  false,
+		},
+		{
+			name:           "no log groups",
+			prefix:         "/aws/codebuild/",
+			expectedGroups: []string{},
+			expectedError:  false,
+		},
+		{
+			name:           "don't return this function log group",
+			prefix:         "/aws/lambda/",
+			expectedGroups: []string{"/aws/lambda/g1"},
+			expectedError:  false,
+		},
+		{
+			name:           "failed to get log groups",
+			prefix:         "/aws/error/test/",
+			expectedGroups: nil,
+			expectedError:  true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result, err := cwClient.getLogGroupsWithPrefix(test.prefix)
+			sort.Strings(result)
+			assert.Equal(t, test.expectedGroups, result)
+
+			if test.expectedError {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
 			}
 		})
 	}

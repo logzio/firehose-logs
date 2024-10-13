@@ -1,24 +1,23 @@
 package handler
 
 import (
-	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 	"github.com/hashicorp/go-multierror"
-	"github.com/logzio/firehose-logs/common"
-	"os"
 	"strings"
 	"sync"
 )
 
+// getServices returns a list of services to monitor
 func getServices() []string {
-	servicesStr := os.Getenv(common.EnvServices)
+	servicesStr := envConfig.servicesValue
 	if servicesStr == emptyString {
 		return nil
 	}
 	return convertStrToArr(servicesStr)
 }
 
+// getCustomGroupsPrefixes returns list of custom log groups which were defined with a wildcard, meaning as prefixes
 func getCustomGroupsPrefixes() []string {
-	customGroupsStr := os.Getenv(common.EnvCustomGroups)
+	customGroupsStr := envConfig.customGroupsValue
 	if customGroupsStr == emptyString {
 		return nil
 	}
@@ -44,12 +43,13 @@ func getCustomGroupsPrefixes() []string {
 	return prefixes
 }
 
+// getServicesLogGroups returns a list of log groups to monitor based on the services
 func getServicesLogGroups(services []string, cwLogsClient *CloudWatchLogsClient) []string {
 	servicesLogGroups := make([]string, 0)
 	serviceToPrefix := getServicesMap()
 	for _, service := range services {
 		if prefix, ok := serviceToPrefix[service]; ok {
-			currServiceLG, err := getLogGroupsWithPrefix(prefix, cwLogsClient)
+			currServiceLG, err := cwLogsClient.getLogGroupsWithPrefix(prefix)
 			if err != nil {
 				sugLog.Error("Failed to get log groups with prefix: ", prefix)
 			}
@@ -59,36 +59,7 @@ func getServicesLogGroups(services []string, cwLogsClient *CloudWatchLogsClient)
 	return servicesLogGroups
 }
 
-func getLogGroupsWithPrefix(prefix string, cwLogsClient *CloudWatchLogsClient) ([]string, error) {
-	var nextToken *string
-	logGroups := make([]string, 0)
-	for {
-		describeOutput, err := cwLogsClient.Client.DescribeLogGroups(&cloudwatchlogs.DescribeLogGroupsInput{
-			LogGroupNamePrefix: &prefix,
-			NextToken:          nextToken,
-		})
-
-		if err != nil {
-			return nil, err
-		}
-		if describeOutput != nil {
-			nextToken = describeOutput.NextToken
-			for _, logGroup := range describeOutput.LogGroups {
-				// Prevent a situation where we put subscription filter on the trigger and shipper function
-				if *logGroup.LogGroupName != lambdaPrefix+os.Getenv(envFunctionName) {
-					logGroups = append(logGroups, *logGroup.LogGroupName)
-				}
-			}
-		}
-
-		if nextToken == nil {
-			break
-		}
-	}
-
-	return logGroups, nil
-}
-
+// getCustomLogGroups returns a list of custom log groups to monitor
 func getCustomLogGroups(secretEnabled, customLogGroupsPrmVal string) ([]string, error) {
 	cwLogsClient, err := getCloudWatchLogsClient()
 	if err != nil {
@@ -107,6 +78,7 @@ func getCustomLogGroups(secretEnabled, customLogGroupsPrmVal string) ([]string, 
 	return getCustomLogGroupsFromParam(convertStrToArr(customLogGroupsPrmVal), cwLogsClient)
 }
 
+// getCustomLogGroupsFromSecret helper function of getCustomLogGroups, returns a list of custom log groups to monitor from secret value
 func getCustomLogGroupsFromSecret(secretArn string, secretCache *SecretCacheClient, cwLogsClient *CloudWatchLogsClient) ([]string, error) {
 	secretName := getSecretNameFromArn(secretArn)
 
@@ -129,6 +101,7 @@ func getCustomLogGroupsFromSecret(secretArn string, secretCache *SecretCacheClie
 	return convertStrToArr(customLogGroups), nil
 }
 
+// getCustomLogGroupsFromParam helper function of getCustomLogGroups, returns a list of custom log groups to monitor from parameter
 func getCustomLogGroupsFromParam(logGroups []string, cwLogsClient *CloudWatchLogsClient) ([]string, error) {
 	customLogGroups := make([]string, 0, len(logGroups))
 	var result *multierror.Error
@@ -146,7 +119,7 @@ func getCustomLogGroupsFromParam(logGroups []string, cwLogsClient *CloudWatchLog
 			defer wg.Done()
 
 			if strings.HasSuffix(logGroup, "*") {
-				newLogGroups, err := getLogGroupsWithPrefix(strings.TrimSuffix(logGroup, "*"), cwLogsClient)
+				newLogGroups, err := cwLogsClient.getLogGroupsWithPrefix(strings.TrimSuffix(logGroup, "*"))
 				if err != nil {
 					sugLog.Error("Failed to get log groups with prefix: ", logGroup)
 					result = multierror.Append(result, err)

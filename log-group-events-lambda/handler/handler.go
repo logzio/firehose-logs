@@ -6,18 +6,18 @@ import (
 	"github.com/logzio/firehose-logs/common"
 	"github.com/logzio/firehose-logs/logger"
 	"go.uber.org/zap"
-	"os"
 	"strings"
 )
 
 var sugLog *zap.SugaredLogger
+var envConfig *Config
 
 func HandleRequest(ctx context.Context, event map[string]interface{}) (string, error) {
 	sugLog = logger.GetSugaredLogger()
 
-	err := validateRequired()
-	if err != nil {
-		return "Lambda finished with error", err
+	envConfig = NewConfig()
+	if envConfig == nil {
+		return "Lambda finished with error", fmt.Errorf("error while validating required environment variables")
 	}
 
 	sugLog.Info("Starting handling event...")
@@ -66,7 +66,7 @@ func HandleRequest(ctx context.Context, event map[string]interface{}) (string, e
 		sugLog.Debug("Detected SubscriptionFilterEvent event")
 
 		var reqParams common.RequestParameters
-		reqParams, err = common.ConvertToRequestParameters(requestParameters)
+		reqParams, err := common.ConvertToRequestParameters(requestParameters)
 		if err != nil {
 			sugLog.Error("Error converting request parameters: ", err.Error())
 			return "", err
@@ -98,7 +98,7 @@ func HandleRequest(ctx context.Context, event map[string]interface{}) (string, e
 
 func handleNewLogGroupEvent(ctx context.Context, newLogGroup string) {
 	// Prevent a situation where we put subscription filter on the trigger function
-	if newLogGroup == lambdaPrefix+os.Getenv(envFunctionName) {
+	if newLogGroup == envConfig.thisFunctionLogGroup {
 		return
 	}
 
@@ -147,7 +147,7 @@ func handleNewLogGroupEvent(ctx context.Context, newLogGroup string) {
 }
 
 func handleSecretChangedEvent(ctx context.Context, secretId string) error {
-	secretName := os.Getenv(common.EnvCustomGroups)
+	secretName := envConfig.customGroupsValue
 
 	// make sure that the secret which changed is the relevant secret
 	if strings.Contains(secretId, secretName) {

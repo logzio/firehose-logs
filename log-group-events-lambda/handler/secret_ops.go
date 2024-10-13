@@ -7,8 +7,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/aws/aws-secretsmanager-caching-go/secretcache"
-	"github.com/logzio/firehose-logs/common"
-	"os"
 	"regexp"
 	"sort"
 )
@@ -19,20 +17,14 @@ type SecretsManagerAPIInterface interface {
 	ListSecretVersionIds(ctx context.Context, params *secretsmanager.ListSecretVersionIdsInput, optFns ...func(*secretsmanager.Options)) (*secretsmanager.ListSecretVersionIdsOutput, error)
 }
 
-type SecretCacheInterface interface {
-	GetSecretString(string) (string, error)
-}
-
+// SecretManagerClient is a client for AWS Secrets Manager API
 type SecretManagerClient struct {
 	Client SecretsManagerAPIInterface
 }
 
-type SecretCacheClient struct {
-	Client SecretCacheInterface
-}
-
+// getSecretManagerClient returns a client for AWS Secrets Manager API
 func getSecretManagerClient(ctx context.Context) (*SecretManagerClient, error) {
-	awsConf, err := config.LoadDefaultConfig(ctx, config.WithRegion(os.Getenv(common.EnvAwsRegion)))
+	awsConf, err := config.LoadDefaultConfig(ctx, config.WithRegion(envConfig.region))
 	if err != nil {
 		sugLog.Error("Failed to setup connection to get older custom log groups secret values.")
 		return nil, err
@@ -40,13 +32,24 @@ func getSecretManagerClient(ctx context.Context) (*SecretManagerClient, error) {
 	return &SecretManagerClient{Client: secretsmanager.NewFromConfig(awsConf)}, nil
 }
 
+// SecretCacheInterface is an interface for secret cache
+type SecretCacheInterface interface {
+	GetSecretString(string) (string, error)
+}
+
+// SecretCacheClient is a client for AWS Secret cache
+type SecretCacheClient struct {
+	Client SecretCacheInterface
+}
+
+// getSecretCacheClient returns a client for AWS Secret cache
 func getSecretCacheClient() (*SecretCacheClient, error) {
 	secretCache, err := secretcache.New()
 
 	return &SecretCacheClient{Client: secretCache}, err
 }
 
-// updateSecretCustomLogGroups updates the custom log groups to monitor based on comparing the old secret value to the new one
+// updateSecretCustomLogGroups updates the custom log groups to monitor based on comparing the old secret value to the new one (helper of handleSecretChangedEvent)
 func updateSecretCustomLogGroups(ctx context.Context, secretId string) error {
 	svc, err := getSecretManagerClient(ctx)
 	if err != nil {
@@ -83,7 +86,7 @@ func updateSecretCustomLogGroups(ctx context.Context, secretId string) error {
 func getSecretNameFromArn(secretArn string) string {
 	var secretName string
 
-	getSecretName := regexp.MustCompile(fmt.Sprintf(`^arn:aws:secretsmanager:%s:%s:secret:(?P<secretName>\S+)-`, os.Getenv(common.EnvAwsRegion), os.Getenv(envAccountId)))
+	getSecretName := regexp.MustCompile(fmt.Sprintf(`^arn:aws:secretsmanager:%s:%s:secret:(?P<secretName>\S+)-`, envConfig.region, envConfig.accountId))
 	match := getSecretName.FindStringSubmatch(secretArn)
 
 	for i, key := range getSecretName.SubexpNames() {
