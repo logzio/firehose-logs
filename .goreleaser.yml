@@ -18,8 +18,8 @@ builds:
       - linux
     goarch:
       - amd64
-  - id: "eventbridge-lambda"
-    dir: "eventbridge-lambda/"
+  - id: "log-group-events-lambda"
+    dir: "log-group-events-lambda/"
     main: "."
     binary: "bootstrap"
     env:
@@ -39,11 +39,11 @@ archives:
       - "cfn-lambda"
     format: zip
     name_template: 'cfn-lambda_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
-  - id: "eventbridge-lambda"
+  - id: "log-group-events-lambda"
     builds:
-      - "eventbridge-lambda"
+      - "log-group-events-lambda"
     format: zip
-    name_template: 'eventbridge-lambda_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    name_template: 'log-group-events-lambda_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
 release:
   draft: true
 changelog:
