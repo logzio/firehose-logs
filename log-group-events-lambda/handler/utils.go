@@ -1,29 +1,8 @@
 package handler
 
 import (
-	"fmt"
-	"os"
 	"strings"
 )
-
-func validateRequired() error {
-	destinationArn := os.Getenv(envFirehoseArn)
-	if destinationArn == emptyString {
-		return fmt.Errorf("destination ARN must be set")
-	}
-
-	accountId := os.Getenv(envAccountId)
-	if accountId == emptyString {
-		return fmt.Errorf("account id must be set")
-	}
-
-	awsPartition := os.Getenv(envAwsPartition)
-	if awsPartition == emptyString {
-		return fmt.Errorf("aws partition must be set")
-	}
-
-	return nil
-}
 
 func getServicesMap() map[string]string {
 	return map[string]string{

@@ -2,70 +2,9 @@ package handler
 
 import (
 	"github.com/stretchr/testify/assert"
-	"os"
 	"sort"
 	"testing"
 )
-
-func TestValidateRequired(t *testing.T) {
-	err := os.Unsetenv(envFirehoseArn)
-	if err != nil {
-		return
-	}
-	err = os.Unsetenv(envAccountId)
-	if err != nil {
-		return
-	}
-	err = os.Unsetenv(envAwsPartition)
-	if err != nil {
-		return
-	}
-
-	/* Missing all 3 required env variable */
-	result := validateRequired()
-
-	if result != nil {
-		assert.Equal(t, "destination ARN must be set", result.Error())
-	} else {
-		t.Fatal("Expected an error, got nil")
-	}
-
-	err = os.Setenv(envFirehoseArn, "test-arn")
-	if err != nil {
-		return
-	}
-
-	/* Missing 2 required env variable */
-	result = validateRequired()
-
-	if result != nil {
-		assert.Equal(t, "account id must be set", result.Error())
-	} else {
-		t.Fatal("Expected an error, got nil")
-	}
-
-	err = os.Setenv(envAccountId, "aws-account-id")
-	if err != nil {
-		return
-	}
-
-	/* Missing 1 required env variable */
-	result = validateRequired()
-	if result != nil {
-		assert.Equal(t, "aws partition must be set", result.Error())
-	} else {
-		t.Fatal("Expected an error, got nil")
-	}
-
-	/* Valid required env variables */
-	err = os.Setenv(envAwsPartition, "test-partition")
-	if err != nil {
-		return
-	}
-
-	result = validateRequired()
-	assert.Nil(t, result)
-}
 
 func TestGetServicesMap(t *testing.T) {
 	result := getServicesMap()

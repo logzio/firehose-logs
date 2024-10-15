@@ -84,3 +84,69 @@ func TestNewConfigValid(t *testing.T) {
 	assert.Equal(t, "", conf.servicesValue)
 	assert.Equal(t, "", conf.region)
 }
+
+func TestValidateRequired(t *testing.T) {
+	/* Setup tests */
+	InitConfigTest()
+
+	tests := []struct {
+		name          string
+		conf          Config
+		expectedError bool
+		errorStr      string
+	}{
+		{
+			name: "missing all 3 required",
+			conf: Config{
+				awsPartition:   "",
+				destinationArn: "",
+				accountId:      "",
+			},
+			expectedError: true,
+			errorStr:      "destination ARN must be set",
+		},
+		{
+			name: "missing 2 required",
+			conf: Config{
+				awsPartition:   "partition",
+				destinationArn: "",
+				accountId:      "",
+			},
+			expectedError: true,
+			errorStr:      "destination ARN must be set",
+		},
+		{
+			name: "missing 1 required",
+			conf: Config{
+				awsPartition:   "partition",
+				destinationArn: "some-arn",
+				accountId:      "",
+			},
+			expectedError: true,
+			errorStr:      "account id must be set",
+		},
+		{
+			name: "valid",
+			conf: Config{
+				awsPartition:   "partition",
+				destinationArn: "some-arn",
+				accountId:      "accountId",
+			},
+			expectedError: false,
+			errorStr:      "",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := test.conf.validateRequired()
+			if test.expectedError {
+				assert.NotNil(t, result)
+				assert.Equal(t, test.errorStr, result.Error())
+			} else {
+				assert.Nil(t, result)
+			}
+		})
+
+	}
+}
