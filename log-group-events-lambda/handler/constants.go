@@ -6,6 +6,7 @@ const (
 	envFirehoseArn               = "FIREHOSE_ARN"
 	envAwsPartition              = "AWS_PARTITION"
 	envPutSubscriptionFilterRole = "PUT_SF_ROLE"
+	envStackName                 = "STACK_NAME"
 
 	logzioSecretKeyName    = "logzioCustomLogGroups"
 	valuesSeparator        = ","

@@ -98,6 +98,9 @@ Once new logs are added to your chosen log group, they will be sent to your Logz
 > If you've used the `services` field, you'll have to **wait 6 minutes** before creating new log groups for your chosen services. This is due to cold start and custom resource invocation, that can cause the Lambda to behave unexpectedly.
 
 ### Changelog:
+- **0.3.1**:
+    - Support deploying multiple stacks within the same AWS account
+    - Resolve bug with update mechanism
 - **0.3.0**: 
   - Support prefixes in `customLogGroups` via wildcard
   - Upgrade go `1.19` >> `1.22`

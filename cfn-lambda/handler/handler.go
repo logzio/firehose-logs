@@ -79,12 +79,12 @@ func updateCustomResource(ctx context.Context, event cfn.Event) (physicalResourc
 
 	payload := common.NewSubscriptionFilterEvent(common.RequestParameters{
 		Action:      common.UpdateSF,
-		NewServices: getConfigItem(newConfig, common.EnvServices),
-		OldServices: getConfigItem(oldConfig, common.EnvServices),
-		NewCustom:   getConfigItem(newConfig, common.EnvCustomGroups),
-		OldCustom:   getConfigItem(oldConfig, common.EnvCustomGroups),
-		NewIsSecret: getConfigItem(newConfig, common.EnvSecretEnabled),
-		OldIsSecret: getConfigItem(oldConfig, common.EnvSecretEnabled),
+		NewServices: getConfigItem(newConfig, cfEventServicesKey),
+		OldServices: getConfigItem(oldConfig, cfEventServicesKey),
+		NewCustom:   getConfigItem(newConfig, cfEventCustomLogGroupsKey),
+		OldCustom:   getConfigItem(oldConfig, cfEventCustomLogGroupsKey),
+		NewIsSecret: getConfigItem(newConfig, cfEventSecretEnabledKey),
+		OldIsSecret: getConfigItem(oldConfig, cfEventSecretEnabledKey),
 	})
 	sugLog.Debug("Created SubscriptionFilter Event: ", payload)
 
