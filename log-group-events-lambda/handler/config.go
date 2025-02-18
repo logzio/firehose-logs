@@ -16,6 +16,7 @@ type Config struct {
 	thisFunctionName     string
 	customGroupsValue    string
 	servicesValue        string
+	filterName           string
 }
 
 func NewConfig() *Config {
@@ -29,6 +30,7 @@ func NewConfig() *Config {
 		thisFunctionName:     os.Getenv(envFunctionName),
 		customGroupsValue:    os.Getenv(common.EnvCustomGroups),
 		servicesValue:        os.Getenv(common.EnvServices),
+		filterName:           os.Getenv(envStackName) + "_" + subscriptionFilterName,
 	}
 
 	err := c.validateRequired()
