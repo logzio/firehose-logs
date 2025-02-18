@@ -125,6 +125,7 @@ Resources:
           FIREHOSE_ARN: !GetAtt logzioFirehose.Arn
           LOG_LEVEL: !Ref triggerLambdaLogLevel
           PUT_SF_ROLE: !GetAtt firehosePutSubscriptionFilterRole.Arn
+          STACK_NAME: !Ref AWS::StackName
 
   # Lambda permissions for log groups and using firehose
   cfnLambdaExecutionRole:

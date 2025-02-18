@@ -33,7 +33,7 @@ func (cwLogsClient *CloudWatchLogsClient) addSubscriptionFilter(logGroups []stri
 	destinationArn := envConfig.destinationArn
 	roleArn := envConfig.roleArn
 	filterPattern := ""
-	filterName := subscriptionFilterName
+	filterName := envStackName + "_" + subscriptionFilterName
 	added := make([]string, 0, len(logGroups))
 	var result *multierror.Error
 
@@ -122,7 +122,7 @@ func (cwLogsClient *CloudWatchLogsClient) removeSubscriptionFilter(logGroups []s
 		return nil, fmt.Errorf("CloudWatch Logs client is nil")
 	}
 
-	filterName := subscriptionFilterName
+	filterName := envStackName + "_" + subscriptionFilterName
 	deleted := make([]string, 0, len(logGroups))
 	var result *multierror.Error
 
