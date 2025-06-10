@@ -226,7 +226,8 @@ Resources:
 
   logGroupCreationEvent:
     Condition: createEventbridgeTrigger
-    Type: AWS::Events::Rule
+    DependsOn: LogGroupEventsLambdaFunction
+    Type: 'AWS::Events::Rule'
     Properties:
       Description: 'This event is triggered by the creation of a new log group, and triggers the Logz.io subscription filter function.'
       EventPattern:
@@ -247,6 +248,7 @@ Resources:
 
   secretChangeEvent:
     Condition: secretChangeEventsEnabled
+    DependsOn: LogGroupEventsLambdaFunction
     Type: 'AWS::Events::Rule'
     Properties:
       Description: 'This event is triggered by change in the secret where the custom log groups are saved (if used a secret)'

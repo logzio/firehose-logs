@@ -98,6 +98,8 @@ Once new logs are added to your chosen log group, they will be sent to your Logz
 > If you've used the `services` field, you'll have to **wait 6 minutes** before creating new log groups for your chosen services. This is due to cold start and custom resource invocation, that can cause the Lambda to behave unexpectedly.
 
 ### Changelog:
+- **0.3.3**:
+  - Fix issue where EventBridge trigger for log group creation was not created
 - **0.3.2**:
   - Fix issue where EventBridge trigger for log group creation was not created when using only `customLogGroups`.
 - **0.3.1**:
