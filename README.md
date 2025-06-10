@@ -99,6 +99,7 @@ Once new logs are added to your chosen log group, they will be sent to your Logz
 
 ### Changelog:
 - **0.3.3**:
+  - Fix timing issue to make sure bucket is created before the delivery stream
   - Fix issue where EventBridge trigger for log group creation was not created
 - **0.3.2**:
   - Fix issue where EventBridge trigger for log group creation was not created when using only `customLogGroups`.

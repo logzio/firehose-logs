@@ -293,6 +293,7 @@ Resources:
   # Firehose and S3 Resources
   logzioFirehose:
     Type: AWS::KinesisFirehose::DeliveryStream
+    DependsOn: logzioS3BackupBucket
     Properties:
       DeliveryStreamName: !Join [ '-', [ 'logzio', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
       DeliveryStreamType: 'DirectPut'
