@@ -7,6 +7,7 @@ const (
 	envAwsPartition              = "AWS_PARTITION"
 	envPutSubscriptionFilterRole = "PUT_SF_ROLE"
 	envStackName                 = "STACK_NAME"
+	envFilterPattern             = "FILTER_PATTERN"
 
 	logzioSecretKeyName    = "logzioCustomLogGroups"
 	valuesSeparator        = ","
