@@ -1,4 +1,3 @@
-<!-- filepath: /Users/yotam/Documents/GitHub/firehose-logs/README.md.new -->
 # Shipping logs from Cloudwatch into Logz.io with Firehose Delivery Stream
 
 This project deploys instrumentation that allows shipping Cloudwatch logs to Logz.io, with a Firehose Delivery Stream.
