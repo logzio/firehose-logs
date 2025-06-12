@@ -18,6 +18,7 @@ func getServicesMap() map[string]string {
 		"aws-glue":             "/aws/aws-glue/",
 		"aws-iot":              "AWSIotLogsV2",
 		"lambda":               "/aws/lambda/",
+		"vpc":                  "/aws/vpc/",
 		"macie":                "/aws/macie/",
 		"amazon-mq":            "/aws/amazonmq/broker/",
 		"batch":                "/aws/batch/",
