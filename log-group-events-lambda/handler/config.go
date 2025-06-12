@@ -2,8 +2,9 @@ package handler
 
 import (
 	"fmt"
-	"github.com/logzio/firehose-logs/common"
 	"os"
+
+	"github.com/logzio/firehose-logs/common"
 )
 
 type Config struct {
@@ -17,6 +18,7 @@ type Config struct {
 	customGroupsValue    string
 	servicesValue        string
 	filterName           string
+	filterPattern        string
 }
 
 func NewConfig() *Config {
@@ -31,6 +33,7 @@ func NewConfig() *Config {
 		customGroupsValue:    os.Getenv(common.EnvCustomGroups),
 		servicesValue:        os.Getenv(common.EnvServices),
 		filterName:           os.Getenv(envStackName) + "_" + subscriptionFilterName,
+		filterPattern:        os.Getenv(envFilterPattern),
 	}
 
 	err := c.validateRequired()
@@ -54,5 +57,16 @@ func (c *Config) validateRequired() error {
 		return fmt.Errorf("aws partition must be set")
 	}
 
+	if c.filterPattern != emptyString {
+		if err := c.validateFilterPattern(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *Config) validateFilterPattern() error {
+	//TODO Implement the logic to validate the filter pattern
 	return nil
 }

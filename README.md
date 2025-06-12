@@ -1,3 +1,4 @@
+<!-- filepath: /Users/yotam/Documents/GitHub/firehose-logs/README.md.new -->
 # Shipping logs from Cloudwatch into Logz.io with Firehose Delivery Stream
 
 This project deploys instrumentation that allows shipping Cloudwatch logs to Logz.io, with a Firehose Delivery Stream.
@@ -62,6 +63,7 @@ Specify the stack details as per the table below, check the checkboxes and selec
 | `triggerLambdaLogLevel`                    | Log level for the Lambda function. Can be one of: `debug`, `info`, `warn`, `error`, `fatal`, `panic`                                                                                                                                                                                                                                                                                                                             | `info`            |
 | `httpEndpointDestinationIntervalInSeconds` | The length of time, in seconds, that Kinesis Data Firehose buffers incoming data before delivering it to the destination                                                                                                                                                                                                                                                                                                         | `60`              |
 | `httpEndpointDestinationSizeInMBs`         | The size of the buffer, in MBs, that Kinesis Data Firehose uses for incoming data before delivering it to the destination                                                                                                                                                                                                                                                                                                        | `5`               |
+| `filterPattern`                            | CloudWatch Logs filter pattern to filter the logs being sent to Logz.io. Leave empty to send all logs. For more information on the syntax, see [Filter and Pattern Syntax](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html).                                                                                                                                                                 | ` ` (empty string)|
 
 
 > #### ⚠️ Important note ⚠️
@@ -98,6 +100,8 @@ Once new logs are added to your chosen log group, they will be sent to your Logz
 > If you've used the `services` field, you'll have to **wait 6 minutes** before creating new log groups for your chosen services. This is due to cold start and custom resource invocation, that can cause the Lambda to behave unexpectedly.
 
 ### Changelog:
+- **0.4.0**:
+  - Added support for subscription filter patterns using the `filterPattern` parameter
 - **0.3.3**:
   - Fix timing issue to make sure bucket is created before the delivery stream
   - Fix issue where EventBridge trigger for log group creation was not created
