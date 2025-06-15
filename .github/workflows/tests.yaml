@@ -25,6 +25,9 @@ jobs:
         run: go test -v -race -covermode=atomic -coverprofile=coverage.out
       - name: Test LogGroups events lambda lambda
         working-directory: ./log-group-events-lambda/handler
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
         run: go test -v -race -covermode=atomic -coverprofile=coverage.out
       - name: Test common functions
         working-directory: ./common
