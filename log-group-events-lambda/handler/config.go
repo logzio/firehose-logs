@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 	"github.com/logzio/firehose-logs/common"
 )
 
@@ -67,6 +69,26 @@ func (c *Config) validateRequired() error {
 }
 
 func (c *Config) validateFilterPattern() error {
-	//TODO Implement the logic to validate the filter pattern
+	if c.filterPattern == emptyString {
+		return nil
+	}
+
+	cwLogClient, err := getCloudWatchLogsClient()
+	if err != nil {
+		return fmt.Errorf("failed to get CloudWatch Logs client: %v", err)
+	}
+
+	input := &cloudwatchlogs.TestMetricFilterInput{
+		FilterPattern: aws.String(c.filterPattern),
+		LogEventMessages: []*string{
+			aws.String("This is a test log message to validate filter pattern syntax"),
+		},
+	}
+
+	_, err = cwLogClient.Client.TestMetricFilter(input)
+	if err != nil {
+		return fmt.Errorf("invalid filter pattern '%s': %v", c.filterPattern, err)
+	}
+
 	return nil
 }
