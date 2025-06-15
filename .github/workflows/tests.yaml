@@ -170,6 +170,51 @@ jobs:
         env:
           LOGZIO_API_TOKEN: ${{ secrets.LOGZIO_API_TOKEN }}
         run: go test -v ./e2e_test.go -args -logType=firehose_auto_test_${{ steps.random_id.outputs.random_id }}2
+        
+      - name: Verify EventBridge Trigger for Log Group Events Lambda
+        run: |
+          lambda_arn=$(aws lambda get-function --function-name auto-test-firehose-log-log-group-events-lambda --query 'Configuration.FunctionArn' --output text)
+          echo "Lambda ARN: $lambda_arn"
+          
+          rule_name="auto-test-firehose-log-logGroupCreationEvent"
+          echo "Looking for rule: $rule_name"
+          
+          rule_arn=$(aws events list-rules --name-prefix $rule_name --query 'Rules[0].Arn' --output text)
+          
+          if [[ "$rule_arn" == "None" ]]; then
+            echo "EventBridge rule not found!"
+            exit 1
+          fi
+          
+          echo "EventBridge rule found: $rule_arn"
+          
+          targets=$(aws events list-targets-by-rule --rule $rule_name)
+          
+          target_arn=$(echo $targets | jq -r '.Targets[0].Arn')
+          
+          echo "Target ARN: $target_arn"
+          echo "Lambda ARN: $lambda_arn"
+          
+          if [[ "$target_arn" == "$lambda_arn" ]]; then
+            echo "✅ EventBridge rule is correctly configured to trigger the Lambda function"
+          else
+            echo "❌ EventBridge rule is not configured to trigger the correct Lambda function"
+            echo "Expected target: $lambda_arn"
+            echo "Actual target: $target_arn"
+            exit 1
+          fi
+          
+          event_pattern=$(aws events describe-rule --name $rule_name --query 'EventPattern' --output text)
+          
+          if [[ $event_pattern == *"aws.logs"* ]]; then
+            echo "✅ Event pattern contains AWS logs source"
+          else
+            echo "❌ Event pattern does not contain AWS logs source"
+            echo "Event pattern: $event_pattern"
+            exit 1
+          fi
+          
+          echo "EventBridge trigger test passed!"
 
       # Cleanup
       - name: Delete the API Gateway
