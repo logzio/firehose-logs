@@ -2,10 +2,12 @@ package handler
 
 import (
 	"fmt"
-	"github.com/logzio/firehose-logs/logger"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
+
+	"github.com/logzio/firehose-logs/common"
+	"github.com/logzio/firehose-logs/logger"
+	"github.com/stretchr/testify/assert"
 )
 
 func InitConfigTest() {
@@ -148,5 +150,90 @@ func TestValidateRequired(t *testing.T) {
 			}
 		})
 
+	}
+}
+
+func TestValidateFilterPattern(t *testing.T) {
+	InitConfigTest()
+
+	err := os.Setenv(common.EnvAwsRegion, "us-east-1")
+	if err != nil {
+		t.Fatalf("Failed to set AWS region: %v", err)
+	}
+
+	tests := []struct {
+		name          string
+		filterPattern string
+		expectedError bool
+		errorContains string
+	}{
+		{
+			name:          "empty pattern",
+			filterPattern: "",
+			expectedError: false,
+			errorContains: "",
+		},
+		{
+			name:          "valid simple pattern",
+			filterPattern: "[ip, user_id, username]",
+			expectedError: false,
+			errorContains: "",
+		},
+		{
+			name:          "valid pattern with wildcard",
+			filterPattern: "[..., status_code=404, size]",
+			expectedError: false,
+			errorContains: "",
+		},
+		{
+			name:          "valid text pattern",
+			filterPattern: "\"ERROR\"",
+			expectedError: false,
+			errorContains: "",
+		},
+		{
+			name:          "valid complex pattern",
+			filterPattern: "[timestamp, request_id, level=ERROR, message]",
+			expectedError: false,
+			errorContains: "",
+		},
+		{
+			name:          "unbalanced brackets",
+			filterPattern: "[ip, user_id",
+			expectedError: true,
+			errorContains: "invalid filter pattern",
+		},
+		{
+			name:          "invalid syntax",
+			filterPattern: "[timestamp=, request_id, level=ERROR]",
+			expectedError: true,
+			errorContains: "invalid filter pattern",
+		},
+		{
+			name:          "unbalanced quotes",
+			filterPattern: "\"ERROR",
+			expectedError: true,
+			errorContains: "invalid filter pattern",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			config := &Config{
+				region:        "us-east-1",
+				filterPattern: test.filterPattern,
+			}
+
+			err := config.validateFilterPattern()
+
+			if test.expectedError {
+				assert.Error(t, err)
+				if test.errorContains != "" {
+					assert.Contains(t, err.Error(), test.errorContains)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
 	}
 }
