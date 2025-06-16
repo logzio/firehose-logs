@@ -136,19 +136,24 @@ jobs:
           lambda_arn=$(aws lambda get-function --function-name auto-test-firehose-log-log-group-events-lambda --query 'Configuration.FunctionArn' --output text)
           echo "Lambda ARN: $lambda_arn"
           
-          rule_name="auto-test-firehose-log-logGroupCreationEvent"
-          echo "Looking for rule: $rule_name"
+          rule_prefix="logGroupCreated"
+          echo "Looking for rule with prefix: $rule_prefix"
           
-          rule_arn=$(aws events list-rules --name-prefix $rule_name --query 'Rules[0].Arn' --output text)
+          rule_name=$(aws events list-rules --query "Rules[?starts_with(Name, '$rule_prefix')].Name" --output text)
           
-          if [[ "$rule_arn" == "None" ]]; then
-            echo "EventBridge rule not found!"
+          if [[ -z "$rule_name" ]]; then
+            echo "EventBridge rule with prefix '$rule_prefix' not found!"
+            echo "Listing all rules to debug:"
+            aws events list-rules --query 'Rules[].Name' --output text
             exit 1
           fi
           
-          echo "EventBridge rule found: $rule_arn"
+          echo "EventBridge rule found: $rule_name"
           
-          targets=$(aws events list-targets-by-rule --rule $rule_name)
+          rule_arn=$(aws events describe-rule --name "$rule_name" --query 'Arn' --output text)
+          echo "Rule ARN: $rule_arn"
+          
+          targets=$(aws events list-targets-by-rule --rule "$rule_name")
           
           target_arn=$(echo $targets | jq -r '.Targets[0].Arn')
           
@@ -164,7 +169,7 @@ jobs:
             exit 1
           fi
           
-          event_pattern=$(aws events describe-rule --name $rule_name --query 'EventPattern' --output text)
+          event_pattern=$(aws events describe-rule --name "$rule_name" --query 'EventPattern' --output text)
           
           if [[ $event_pattern == *"aws.logs"* ]]; then
             echo "✅ Event pattern contains AWS logs source"
