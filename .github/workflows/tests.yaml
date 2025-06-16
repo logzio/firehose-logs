@@ -133,28 +133,47 @@ jobs:
 
       - name: Verify EventBridge Trigger for Log Group Events Lambda
         run: |
+          # Get Lambda ARN for verification
           lambda_arn=$(aws lambda get-function --function-name auto-test-firehose-log-log-group-events-lambda --query 'Configuration.FunctionArn' --output text)
           echo "Lambda ARN: $lambda_arn"
           
-          rule_prefix="logGroupCreated"
-          echo "Looking for rule with prefix: $rule_prefix"
+          # Get the stack ID to extract the unique identifier
+          stack_info=$(aws cloudformation describe-stacks --stack-name auto-test-firehose-log --query 'Stacks[0]')
+          stack_id=$(echo $stack_info | jq -r '.StackId')
+          echo "Stack ID: $stack_id"
           
-          rule_name=$(aws events list-rules --query "Rules[?starts_with(Name, '$rule_prefix')].Name" --output text)
+          # Extract the unique part of the Stack ID that's used in the rule name
+          # Pattern from template: !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ]
+          # First split by '/' and take 3rd part (index 2)
+          stack_part=$(echo $stack_id | cut -d'/' -f3)
+          # Then split by '-' and take 5th part (index 4)
+          unique_id=$(echo $stack_part | cut -d'-' -f5)
+          echo "Unique ID from stack: $unique_id"
           
-          if [[ -z "$rule_name" ]]; then
-            echo "EventBridge rule with prefix '$rule_prefix' not found!"
-            echo "Listing all rules to debug:"
-            aws events list-rules --query 'Rules[].Name' --output text
+          # Construct the expected rule name based on the CloudFormation template pattern
+          rule_name="logGroupCreated-$unique_id"
+          echo "Looking for rule: $rule_name"
+          
+          # Check if the rule exists
+          rule_exists=$(aws events list-rules --query "Rules[?Name=='$rule_name'].Name" --output text)
+          
+          if [[ -z "$rule_exists" ]]; then
+            echo "EventBridge rule '$rule_name' not found!"
+            echo "Listing all logGroupCreated-* rules to debug:"
+            aws events list-rules --query "Rules[?starts_with(Name, 'logGroupCreated')].Name" --output text
             exit 1
           fi
           
           echo "EventBridge rule found: $rule_name"
           
+          # Get the rule ARN
           rule_arn=$(aws events describe-rule --name "$rule_name" --query 'Arn' --output text)
           echo "Rule ARN: $rule_arn"
           
+          # Check if the rule has a target pointing to the lambda function
           targets=$(aws events list-targets-by-rule --rule "$rule_name")
           
+          # Extract the ARN from the targets output and verify it matches the lambda ARN
           target_arn=$(echo $targets | jq -r '.Targets[0].Arn')
           
           echo "Target ARN: $target_arn"
@@ -169,6 +188,7 @@ jobs:
             exit 1
           fi
           
+          # Verify the event pattern includes CloudWatch Logs source
           event_pattern=$(aws events describe-rule --name "$rule_name" --query 'EventPattern' --output text)
           
           if [[ $event_pattern == *"aws.logs"* ]]; then
