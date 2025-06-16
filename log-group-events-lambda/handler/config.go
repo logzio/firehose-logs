@@ -77,7 +77,7 @@ func (c *Config) validateFilterPattern() error {
 	if err != nil {
 		return fmt.Errorf("failed to get CloudWatch Logs client: %v", err)
 	}
-
+	// We use TestMetricFilter to validate the filter pattern syntax (https://docs.aws.amazon.com/AmazonCloudWatchLogs/latest/APIReference/API_TestMetricFilter.html)
 	input := &cloudwatchlogs.TestMetricFilterInput{
 		FilterPattern: aws.String(c.filterPattern),
 		LogEventMessages: []*string{
