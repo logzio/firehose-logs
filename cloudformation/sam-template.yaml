@@ -199,6 +199,7 @@ Resources:
                   - 'logs:DescribeLogGroups'
                   - 'logs:PutSubscriptionFilter'
                   - 'logs:DeleteSubscriptionFilter'
+                  - 'logs:TestMetricFilter'
                 Resource:
                   - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*'
                   - !GetAtt logzioFirehose.Arn
