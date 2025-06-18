@@ -232,6 +232,29 @@ jobs:
       - name: Wait for stack to finish updating
         run: aws cloudformation wait stack-update-complete --stack-name auto-test-firehose-log
 
+      - name: Invoke the API to generate logs
+        run: curl -X GET https://$(echo ${{ steps.create_api.outputs.api_id }}).execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/
+
+      - name: Wait to allow data to get to logzio
+        run: sleep 240
+
+      # Run tests
+      - name: Run Go Tests
+        working-directory: ./tests
+        env:
+          LOGZIO_API_TOKEN: ${{ secrets.LOGZIO_API_TOKEN }}
+        run: go test -v ./e2e_test.go -run TestNeededDataGotToLogzio -args -logType=firehose_auto_test_${{ steps.random_id.outputs.random_id }}2
+
+      - name: Update Stack to use filter pattern
+        run: |
+          aws cloudformation update-stack \
+          --stack-name auto-test-firehose-log \
+          --capabilities CAPABILITY_NAMED_IAM \
+          --use-previous-template --parameters ParameterKey=filterPattern,ParameterValue="GET" ParameterKey=customLogGroups,UsePreviousValue=true ParameterKey=useCustomLogGroupsFromSecret,UsePreviousValue=true ParameterKey=logzioType,ParameterValue=firehose_auto_test_$(echo ${{ steps.random_id.outputs.random_id }})3 ParameterKey=logzioToken,UsePreviousValue=true ParameterKey=logzioListener,UsePreviousValue=true ParameterKey=services,UsePreviousValue=true
+
+      - name: Wait for stack to finish updating
+        run: aws cloudformation wait stack-update-complete --stack-name auto-test-firehose-log
+
       - name: Verify subscription filter contains the filter pattern
         run: |
           log_group_name="API-Gateway-Execution-Logs_$(echo ${{ steps.create_api.outputs.api_id }})/test"
@@ -293,29 +316,6 @@ jobs:
           fi
           
           echo "Subscription filter verification completed successfully!"
-
-      - name: Invoke the API to generate logs
-        run: curl -X GET https://$(echo ${{ steps.create_api.outputs.api_id }}).execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/
-
-      - name: Wait to allow data to get to logzio
-        run: sleep 240
-
-      # Run tests
-      - name: Run Go Tests
-        working-directory: ./tests
-        env:
-          LOGZIO_API_TOKEN: ${{ secrets.LOGZIO_API_TOKEN }}
-        run: go test -v ./e2e_test.go -run TestNeededDataGotToLogzio -args -logType=firehose_auto_test_${{ steps.random_id.outputs.random_id }}2
-
-      - name: Update Stack to use filter pattern
-        run: |
-          aws cloudformation update-stack \
-          --stack-name auto-test-firehose-log \
-          --capabilities CAPABILITY_NAMED_IAM \
-          --use-previous-template --parameters ParameterKey=filterPattern,ParameterValue="GET" ParameterKey=customLogGroups,UsePreviousValue=true ParameterKey=useCustomLogGroupsFromSecret,UsePreviousValue=true ParameterKey=logzioType,ParameterValue=firehose_auto_test_$(echo ${{ steps.random_id.outputs.random_id }})3 ParameterKey=logzioToken,UsePreviousValue=true ParameterKey=logzioListener,UsePreviousValue=true ParameterKey=services,UsePreviousValue=true
-
-      - name: Wait for stack to finish updating
-        run: aws cloudformation wait stack-update-complete --stack-name auto-test-firehose-log
 
       - name: Invoke the API with GET request (should be included by filter)
         run: curl -X GET https://$(echo ${{ steps.create_api.outputs.api_id }}).execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/
