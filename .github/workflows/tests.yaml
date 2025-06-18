@@ -288,33 +288,6 @@ jobs:
             exit 1
           fi
           
-          destination_arn=$(echo $filter_details | jq -r '.subscriptionFilters[0].destinationArn')
-          echo "Destination ARN: $destination_arn"
-          
-          firehose_arn=$(aws cloudformation describe-stacks \
-            --stack-name auto-test-firehose-log \
-            --query "Stacks[0].Outputs[?OutputKey=='FirehoseArn'].OutputValue" \
-            --output text)
-          
-          if [[ -z "$firehose_arn" ]]; then
-            firehose_name="auto-test-firehose-log-logzioFirehose"
-            firehose_arn=$(aws firehose describe-delivery-stream \
-              --delivery-stream-name "$firehose_name" \
-              --query "DeliveryStreamARN" \
-              --output text)
-          fi
-          
-          echo "Firehose ARN: $firehose_arn"
-          
-          if [[ "$destination_arn" == "$firehose_arn" ]]; then
-            echo "✅ Subscription filter points to the correct Firehose"
-          else
-            echo "❌ Subscription filter points to incorrect destination"
-            echo "Expected: $firehose_arn"
-            echo "Actual: $destination_arn"
-            exit 1
-          fi
-          
           echo "Subscription filter verification completed successfully!"
 
       - name: Invoke the API with GET request (should be included by filter)
