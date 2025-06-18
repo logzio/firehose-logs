@@ -66,7 +66,7 @@ Parameters:
     Default: 5
   filterPattern:
     Type: String
-    Description: 'CloudWatch Logs filter pattern to filter the logs being sent to Logz.io. Leave empty to send all logs.'
+    Description: 'CloudWatch Logs filter pattern to filter the logs being sent to Logz.io. Leave empty to send all logs. For more information on the syntax, see https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html.'
     Default: ''
 
 Conditions:
