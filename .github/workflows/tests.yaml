@@ -232,6 +232,68 @@ jobs:
       - name: Wait for stack to finish updating
         run: aws cloudformation wait stack-update-complete --stack-name auto-test-firehose-log
 
+      - name: Verify subscription filter contains the filter pattern
+        run: |
+          log_group_name="API-Gateway-Execution-Logs_$(echo ${{ steps.create_api.outputs.api_id }})/test"
+          echo "Checking subscription filter for log group: $log_group_name"
+          
+          stack_info=$(aws cloudformation describe-stacks --stack-name auto-test-firehose-log --query 'Stacks[0]')
+          stack_id=$(echo $stack_info | jq -r '.StackId')
+          stack_part=$(echo $stack_id | cut -d'/' -f3)
+          unique_id=$(echo $stack_part | cut -d'-' -f5)
+          
+          filter_name="auto-test-firehose-log_logzio_firehose"
+          echo "Looking for filter: $filter_name"
+          
+          filter_details=$(aws logs describe-subscription-filters \
+            --log-group-name "$log_group_name" \
+            --filter-name-prefix "$filter_name")
+          
+          filter_count=$(echo $filter_details | jq '.subscriptionFilters | length')
+          if [[ "$filter_count" -eq 0 ]]; then
+            echo "❌ Subscription filter not found!"
+            exit 1
+          fi
+          
+          filter_pattern=$(echo $filter_details | jq -r '.subscriptionFilters[0].filterPattern')
+          echo "Filter pattern: '$filter_pattern'"
+          
+          if [[ "$filter_pattern" == "GET" ]]; then
+            echo "✅ Subscription filter has the correct pattern: 'GET'"
+          else
+            echo "❌ Subscription filter has incorrect pattern: '$filter_pattern', expected: 'GET'"
+            exit 1
+          fi
+          
+          destination_arn=$(echo $filter_details | jq -r '.subscriptionFilters[0].destinationArn')
+          echo "Destination ARN: $destination_arn"
+          
+          firehose_arn=$(aws cloudformation describe-stacks \
+            --stack-name auto-test-firehose-log \
+            --query "Stacks[0].Outputs[?OutputKey=='FirehoseArn'].OutputValue" \
+            --output text)
+          
+          if [[ -z "$firehose_arn" ]]; then
+            firehose_name="auto-test-firehose-log-logzioFirehose"
+            firehose_arn=$(aws firehose describe-delivery-stream \
+              --delivery-stream-name "$firehose_name" \
+              --query "DeliveryStreamARN" \
+              --output text)
+          fi
+          
+          echo "Firehose ARN: $firehose_arn"
+          
+          if [[ "$destination_arn" == "$firehose_arn" ]]; then
+            echo "✅ Subscription filter points to the correct Firehose"
+          else
+            echo "❌ Subscription filter points to incorrect destination"
+            echo "Expected: $firehose_arn"
+            echo "Actual: $destination_arn"
+            exit 1
+          fi
+          
+          echo "Subscription filter verification completed successfully!"
+
       - name: Invoke the API to generate logs
         run: curl -X GET https://$(echo ${{ steps.create_api.outputs.api_id }}).execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/
 
