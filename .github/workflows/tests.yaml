@@ -94,9 +94,14 @@ jobs:
           aws apigateway put-method --rest-api-id $api_id --resource-id $resource_id --http-method GET --authorization-type "NONE"
           aws apigateway put-method-response --rest-api-id $api_id --resource-id $resource_id --http-method GET --status-code 200
           
-          # Add Integration
+          aws apigateway put-method --rest-api-id $api_id --resource-id $resource_id --http-method POST --authorization-type "NONE"
+          aws apigateway put-method-response --rest-api-id $api_id --resource-id $resource_id --http-method POST --status-code 200
+          
           aws apigateway put-integration --rest-api-id $api_id --resource-id $resource_id --http-method GET --type MOCK --request-templates '{ "application/json": "{\"statusCode\": 200}" }'
           aws apigateway put-integration-response --rest-api-id $api_id --resource-id $resource_id --http-method GET --status-code 200 --selection-pattern "" --response-templates '{"application/json": "{\"statusCode\": 200, \"message\": \"Test msg\"}"}'
+          
+          aws apigateway put-integration --rest-api-id $api_id --resource-id $resource_id --http-method POST --type MOCK --request-templates '{ "application/json": "{\"statusCode\": 200}" }'
+          aws apigateway put-integration-response --rest-api-id $api_id --resource-id $resource_id --http-method POST --status-code 200 --selection-pattern "" --response-templates '{"application/json": "{\"statusCode\": 200, \"message\": \"Test POST msg\"}"}'
           
           # Deploy 
           aws apigateway create-deployment --rest-api-id $api_id --stage-name test --stage-description 'Test stage' --description 'First deployment'
@@ -239,6 +244,31 @@ jobs:
         env:
           LOGZIO_API_TOKEN: ${{ secrets.LOGZIO_API_TOKEN }}
         run: go test -v ./e2e_test.go -args -logType=firehose_auto_test_${{ steps.random_id.outputs.random_id }}2
+
+      - name: Update Stack to use filter pattern
+        run: |
+          aws cloudformation update-stack \
+          --stack-name auto-test-firehose-log \
+          --capabilities CAPABILITY_NAMED_IAM \
+          --use-previous-template --parameters ParameterKey=filterPattern,ParameterValue="GET" ParameterKey=customLogGroups,UsePreviousValue=true ParameterKey=useCustomLogGroupsFromSecret,UsePreviousValue=true ParameterKey=logzioType,ParameterValue=firehose_auto_test_$(echo ${{ steps.random_id.outputs.random_id }})3 ParameterKey=logzioToken,UsePreviousValue=true ParameterKey=logzioListener,UsePreviousValue=true ParameterKey=services,UsePreviousValue=true
+
+      - name: Wait for stack to finish updating
+        run: aws cloudformation wait stack-update-complete --stack-name auto-test-firehose-log
+
+      - name: Invoke the API with GET request (should be included by filter)
+        run: curl -X GET https://$(echo ${{ steps.create_api.outputs.api_id }}).execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/
+
+      - name: Invoke the API with POST request (should be filtered out)
+        run: 'curl -X POST -H "Content-Type: application/json" -d ''{"test":"data"}'' https://$(echo ${{ steps.create_api.outputs.api_id }}).execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/'
+
+      - name: Wait to allow data to get to logzio
+        run: sleep 240
+
+      - name: Run Filter Pattern Tests
+        working-directory: ./tests
+        env:
+          LOGZIO_API_TOKEN: ${{ secrets.LOGZIO_API_TOKEN }}
+        run: go test -v ./e2e_test.go -run TestFilterPattern -args -logType=firehose_auto_test_$(echo ${{ steps.random_id.outputs.random_id }})3
 
       # Cleanup
       - name: Delete the API Gateway
