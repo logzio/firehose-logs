@@ -132,7 +132,7 @@ jobs:
           aws cloudformation deploy \
           --template-file ./cloudformation/sam-template.yaml \
           --stack-name auto-test-firehose-log \
-          --parameter-overrides logzioToken=${{ secrets.LOGZIO_SHIPPING_TOKEN }} logzioType=firehose_auto_test_$(echo ${{ steps.random_id.outputs.random_id }}) logzioListener=https://aws-firehose-logs-listener.logz.io services=apigateway filterPattern="GET" customLogGroups=API-Gateway-Execution-Logs_$(echo ${{ steps.create_api.outputs.api_id }})/test \
+          --parameter-overrides logzioToken=${{ secrets.LOGZIO_SHIPPING_TOKEN }} logzioType=firehose_auto_test_$(echo ${{ steps.random_id.outputs.random_id }}) logzioListener=https://aws-firehose-logs-listener.logz.io services=apigateway filterPattern=GET customLogGroups=API-Gateway-Execution-Logs_$(echo ${{ steps.create_api.outputs.api_id }})/test \
           --capabilities CAPABILITY_NAMED_IAM \
           --disable-rollback
 
