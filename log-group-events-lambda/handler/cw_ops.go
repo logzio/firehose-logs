@@ -36,6 +36,9 @@ func (cwLogsClient *CloudWatchLogsClient) addSubscriptionFilter(logGroups []stri
 	filterPattern := envConfig.filterPattern
 	filterName := envConfig.filterName
 	added := make([]string, 0, len(logGroups))
+	if filterPattern != "" {
+		sugLog.Debugf("Applying filter pattern '%s' to log groups %s", filterPattern, logGroups)
+	}
 	var result *multierror.Error
 
 	var wg sync.WaitGroup
@@ -60,9 +63,6 @@ func (cwLogsClient *CloudWatchLogsClient) addSubscriptionFilter(logGroups []stri
 					RoleArn:        &roleArn,
 				}
 
-				if filterPattern != "" {
-					sugLog.Debugf("Applying filter pattern '%s' to log group %s", filterPattern, logGroup)
-				}
 				_, err := cwLogsClient.Client.PutSubscriptionFilter(filterInput)
 
 				// retry mechanism
