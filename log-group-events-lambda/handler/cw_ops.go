@@ -3,13 +3,14 @@ package handler
 import (
 	"errors"
 	"fmt"
+	"sync"
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs/cloudwatchlogsiface"
 	"github.com/hashicorp/go-multierror"
 	"github.com/logzio/firehose-logs/common"
-	"sync"
-	"time"
 )
 
 type CloudWatchLogsClient struct {
@@ -32,9 +33,12 @@ func (cwLogsClient *CloudWatchLogsClient) addSubscriptionFilter(logGroups []stri
 
 	destinationArn := envConfig.destinationArn
 	roleArn := envConfig.roleArn
-	filterPattern := ""
+	filterPattern := envConfig.filterPattern
 	filterName := envConfig.filterName
 	added := make([]string, 0, len(logGroups))
+	if filterPattern != "" {
+		sugLog.Debugf("Applying filter pattern '%s' to log groups %s", filterPattern, logGroups)
+	}
 	var result *multierror.Error
 
 	var wg sync.WaitGroup
@@ -51,13 +55,15 @@ func (cwLogsClient *CloudWatchLogsClient) addSubscriptionFilter(logGroups []stri
 
 			retries := 0
 			for {
-				_, err := cwLogsClient.Client.PutSubscriptionFilter(&cloudwatchlogs.PutSubscriptionFilterInput{
+				filterInput := &cloudwatchlogs.PutSubscriptionFilterInput{
 					DestinationArn: &destinationArn,
 					FilterName:     &filterName,
 					LogGroupName:   &logGroup,
 					FilterPattern:  &filterPattern,
 					RoleArn:        &roleArn,
-				})
+				}
+
+				_, err := cwLogsClient.Client.PutSubscriptionFilter(filterInput)
 
 				// retry mechanism
 				if err != nil {

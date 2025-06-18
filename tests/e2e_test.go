@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
 
 var logger, _ = zap.NewProduction()
@@ -24,6 +25,7 @@ type LogResponse struct {
 			Source struct {
 				LogType  string `json:"type"`
 				LogGroup string `json:"logGroup"`
+				Message  string `json:"message"` // Add message field to check filter pattern
 			} `json:"_source"`
 		} `json:"hits"`
 	} `json:"hits"`
@@ -59,6 +61,25 @@ func TestNeededDataGotToLogzio(t *testing.T) {
 		assert.True(t, containsAny(hit.Source.LogGroup, possibleLogGroups))
 	}
 
+}
+
+func TestFilterPattern(t *testing.T) {
+	logsApiToken := os.Getenv("LOGZIO_API_TOKEN")
+	if logsApiToken == "" {
+		t.Fatalf("LOGZIO_LOGS_API_KEY environment variable not set")
+	}
+
+	logzioLogs, err := fetchLogs(logsApiToken)
+	if err != nil {
+		t.Fatalf("Failed to fetch logs: %v", err)
+	}
+
+	assert.Greater(t, logzioLogs.Hits.Total, 0, "No logs found after applying filter pattern")
+
+	for _, hit := range logzioLogs.Hits.Hits {
+		assert.Contains(t, hit.Source.Message, "GET",
+			fmt.Sprintf("Log doesn't contain 'GET' which should be required by filter pattern: %s", hit.Source.Message))
+	}
 }
 
 func fetchLogs(logsApiToken string) (*LogResponse, error) {

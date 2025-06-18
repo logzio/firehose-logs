@@ -25,6 +25,9 @@ jobs:
         run: go test -v -race -covermode=atomic -coverprofile=coverage.out
       - name: Test LogGroups events lambda lambda
         working-directory: ./log-group-events-lambda/handler
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
         run: go test -v -race -covermode=atomic -coverprofile=coverage.out
       - name: Test common functions
         working-directory: ./common
@@ -91,9 +94,14 @@ jobs:
           aws apigateway put-method --rest-api-id $api_id --resource-id $resource_id --http-method GET --authorization-type "NONE"
           aws apigateway put-method-response --rest-api-id $api_id --resource-id $resource_id --http-method GET --status-code 200
           
-          # Add Integration
+          aws apigateway put-method --rest-api-id $api_id --resource-id $resource_id --http-method POST --authorization-type "NONE"
+          aws apigateway put-method-response --rest-api-id $api_id --resource-id $resource_id --http-method POST --status-code 200
+          
           aws apigateway put-integration --rest-api-id $api_id --resource-id $resource_id --http-method GET --type MOCK --request-templates '{ "application/json": "{\"statusCode\": 200}" }'
           aws apigateway put-integration-response --rest-api-id $api_id --resource-id $resource_id --http-method GET --status-code 200 --selection-pattern "" --response-templates '{"application/json": "{\"statusCode\": 200, \"message\": \"Test msg\"}"}'
+          
+          aws apigateway put-integration --rest-api-id $api_id --resource-id $resource_id --http-method POST --type MOCK --request-templates '{ "application/json": "{\"statusCode\": 200}" }'
+          aws apigateway put-integration-response --rest-api-id $api_id --resource-id $resource_id --http-method POST --status-code 200 --selection-pattern "" --response-templates '{"application/json": "{\"statusCode\": 200, \"message\": \"Test POST msg\"}"}'
           
           # Deploy 
           aws apigateway create-deployment --rest-api-id $api_id --stage-name test --stage-description 'Test stage' --description 'First deployment'
@@ -124,9 +132,75 @@ jobs:
           aws cloudformation deploy \
           --template-file ./cloudformation/sam-template.yaml \
           --stack-name auto-test-firehose-log \
-          --parameter-overrides logzioToken=${{ secrets.LOGZIO_SHIPPING_TOKEN }} logzioType=firehose_auto_test_$(echo ${{ steps.random_id.outputs.random_id }}) logzioListener=https://aws-firehose-logs-listener.logz.io services=apigateway customLogGroups=API-Gateway-Execution-Logs_$(echo ${{ steps.create_api.outputs.api_id }})/test \
+          --parameter-overrides logzioToken=${{ secrets.LOGZIO_SHIPPING_TOKEN }} logzioType=firehose_auto_test_$(echo ${{ steps.random_id.outputs.random_id }}) logzioListener=https://aws-firehose-logs-listener.logz.io services=apigateway filterPattern=GET customLogGroups=API-Gateway-Execution-Logs_$(echo ${{ steps.create_api.outputs.api_id }})/test \
           --capabilities CAPABILITY_NAMED_IAM \
           --disable-rollback
+
+      - name: Verify EventBridge Trigger for Log Group Events Lambda
+        run: |
+          lambda_arn=$(aws lambda get-function --function-name auto-test-firehose-log-log-group-events-lambda --query 'Configuration.FunctionArn' --output text)
+          echo "Lambda ARN: $lambda_arn"
+          
+          stack_info=$(aws cloudformation describe-stacks --stack-name auto-test-firehose-log --query 'Stacks[0]')
+          stack_id=$(echo $stack_info | jq -r '.StackId')
+          echo "Stack ID: $stack_id"
+          
+          # Extract the unique part of the Stack ID that's used in the rule name
+          # Pattern from template: !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ]
+          # First split by '/' and take 3rd part (index 2)
+          stack_part=$(echo $stack_id | cut -d'/' -f3)
+          # Then split by '-' and take 5th part (index 4)
+          unique_id=$(echo $stack_part | cut -d'-' -f5)
+          echo "Unique ID from stack: $unique_id"
+          
+          rule_name="logGroupCreated-$unique_id"
+          echo "Looking for rule: $rule_name"
+          
+          rule_exists=$(aws events list-rules --query "Rules[?Name=='$rule_name'].Name" --output text)
+          
+          if [[ -z "$rule_exists" ]]; then
+            echo "EventBridge rule '$rule_name' not found!"
+            echo "Listing all logGroupCreated-* rules to debug:"
+            aws events list-rules --query "Rules[?starts_with(Name, 'logGroupCreated')].Name" --output text
+            exit 1
+          fi
+          
+          echo "EventBridge rule found: $rule_name"
+          
+          # Get the rule ARN
+          rule_arn=$(aws events describe-rule --name "$rule_name" --query 'Arn' --output text)
+          echo "Rule ARN: $rule_arn"
+          
+          # Check if the rule has a target pointing to the lambda function
+          targets=$(aws events list-targets-by-rule --rule "$rule_name")
+          
+          # Extract the ARN from the targets output and verify it matches the lambda ARN
+          target_arn=$(echo $targets | jq -r '.Targets[0].Arn')
+          
+          echo "Target ARN: $target_arn"
+          echo "Lambda ARN: $lambda_arn"
+          
+          if [[ "$target_arn" == "$lambda_arn" ]]; then
+            echo "✅ EventBridge rule is correctly configured to trigger the Lambda function"
+          else
+            echo "❌ EventBridge rule is not configured to trigger the correct Lambda function"
+            echo "Expected target: $lambda_arn"
+            echo "Actual target: $target_arn"
+            exit 1
+          fi
+          
+          # Verify the event pattern includes CloudWatch Logs source
+          event_pattern=$(aws events describe-rule --name "$rule_name" --query 'EventPattern' --output text)
+          
+          if [[ $event_pattern == *"aws.logs"* ]]; then
+            echo "✅ Event pattern contains AWS logs source"
+          else
+            echo "❌ Event pattern does not contain AWS logs source"
+            echo "Event pattern: $event_pattern"
+            exit 1
+          fi
+          
+          echo "EventBridge trigger test passed!"
 
       - name: Invoke the API to generate logs
         run: curl -X GET https://$(echo ${{ steps.create_api.outputs.api_id }}).execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/
@@ -139,7 +213,7 @@ jobs:
         working-directory: ./tests
         env:
           LOGZIO_API_TOKEN: ${{ secrets.LOGZIO_API_TOKEN }}
-        run: go test -v ./e2e_test.go -args -logType=firehose_auto_test_${{ steps.random_id.outputs.random_id }}
+        run: go test -v ./e2e_test.go -run TestNeededDataGotToLogzio -args -logType=firehose_auto_test_${{ steps.random_id.outputs.random_id }}
 
       # Update stack to test using secret for customLogGroups
       - name: Create a secret with custom log group
@@ -169,7 +243,67 @@ jobs:
         working-directory: ./tests
         env:
           LOGZIO_API_TOKEN: ${{ secrets.LOGZIO_API_TOKEN }}
-        run: go test -v ./e2e_test.go -args -logType=firehose_auto_test_${{ steps.random_id.outputs.random_id }}2
+        run: go test -v ./e2e_test.go -run TestNeededDataGotToLogzio -args -logType=firehose_auto_test_${{ steps.random_id.outputs.random_id }}2
+
+      - name: Update Stack to use filter pattern
+        run: |
+          aws cloudformation update-stack \
+          --stack-name auto-test-firehose-log \
+          --capabilities CAPABILITY_NAMED_IAM \
+          --use-previous-template --parameters ParameterKey=filterPattern,ParameterValue="GET" ParameterKey=customLogGroups,UsePreviousValue=true ParameterKey=useCustomLogGroupsFromSecret,UsePreviousValue=true ParameterKey=logzioType,ParameterValue=firehose_auto_test_$(echo ${{ steps.random_id.outputs.random_id }})3 ParameterKey=logzioToken,UsePreviousValue=true ParameterKey=logzioListener,UsePreviousValue=true ParameterKey=services,UsePreviousValue=true
+
+      - name: Wait for stack to finish updating
+        run: aws cloudformation wait stack-update-complete --stack-name auto-test-firehose-log
+
+      - name: Verify subscription filter contains the filter pattern
+        run: |
+          log_group_name="API-Gateway-Execution-Logs_$(echo ${{ steps.create_api.outputs.api_id }})/test"
+          echo "Checking subscription filter for log group: $log_group_name"
+          
+          stack_info=$(aws cloudformation describe-stacks --stack-name auto-test-firehose-log --query 'Stacks[0]')
+          stack_id=$(echo $stack_info | jq -r '.StackId')
+          stack_part=$(echo $stack_id | cut -d'/' -f3)
+          unique_id=$(echo $stack_part | cut -d'-' -f5)
+          
+          filter_name="auto-test-firehose-log_logzio_firehose"
+          echo "Looking for filter: $filter_name"
+          
+          filter_details=$(aws logs describe-subscription-filters \
+            --log-group-name "$log_group_name" \
+            --filter-name-prefix "$filter_name")
+          
+          filter_count=$(echo $filter_details | jq '.subscriptionFilters | length')
+          if [[ "$filter_count" -eq 0 ]]; then
+            echo "❌ Subscription filter not found!"
+            exit 1
+          fi
+          
+          filter_pattern=$(echo $filter_details | jq -r '.subscriptionFilters[0].filterPattern')
+          echo "Filter pattern: '$filter_pattern'"
+          
+          if [[ "$filter_pattern" == "GET" ]]; then
+            echo "✅ Subscription filter has the correct pattern: 'GET'"
+          else
+            echo "❌ Subscription filter has incorrect pattern: '$filter_pattern', expected: 'GET'"
+            exit 1
+          fi
+          
+          echo "Subscription filter verification completed successfully!"
+
+      - name: Invoke the API with GET request (should be included by filter)
+        run: curl -X GET https://$(echo ${{ steps.create_api.outputs.api_id }}).execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/
+
+      - name: Invoke the API with POST request (should be filtered out)
+        run: 'curl -X POST -H "Content-Type: application/json" -d ''{"test":"data"}'' https://$(echo ${{ steps.create_api.outputs.api_id }}).execute-api.${{ env.AWS_REGION }}.amazonaws.com/test/'
+
+      - name: Wait to allow data to get to logzio
+        run: sleep 240
+
+      - name: Run Filter Pattern Tests
+        working-directory: ./tests
+        env:
+          LOGZIO_API_TOKEN: ${{ secrets.LOGZIO_API_TOKEN }}
+        run: go test -v ./e2e_test.go -run TestFilterPattern -args -logType=firehose_auto_test_$(echo ${{ steps.random_id.outputs.random_id }})3
 
       # Cleanup
       - name: Delete the API Gateway

@@ -2,8 +2,11 @@ package handler
 
 import (
 	"fmt"
-	"github.com/logzio/firehose-logs/common"
 	"os"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
+	"github.com/logzio/firehose-logs/common"
 )
 
 type Config struct {
@@ -17,6 +20,7 @@ type Config struct {
 	customGroupsValue    string
 	servicesValue        string
 	filterName           string
+	filterPattern        string
 }
 
 func NewConfig() *Config {
@@ -31,6 +35,7 @@ func NewConfig() *Config {
 		customGroupsValue:    os.Getenv(common.EnvCustomGroups),
 		servicesValue:        os.Getenv(common.EnvServices),
 		filterName:           os.Getenv(envStackName) + "_" + subscriptionFilterName,
+		filterPattern:        os.Getenv(envFilterPattern),
 	}
 
 	err := c.validateRequired()
@@ -52,6 +57,37 @@ func (c *Config) validateRequired() error {
 
 	if c.awsPartition == emptyString {
 		return fmt.Errorf("aws partition must be set")
+	}
+
+	if c.filterPattern != emptyString {
+		if err := c.validateFilterPattern(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *Config) validateFilterPattern() error {
+	if c.filterPattern == emptyString {
+		return nil
+	}
+
+	cwLogClient, err := getCloudWatchLogsClient()
+	if err != nil {
+		return fmt.Errorf("failed to get CloudWatch Logs client: %v", err)
+	}
+	// We use TestMetricFilter to validate the filter pattern syntax (https://docs.aws.amazon.com/AmazonCloudWatchLogs/latest/APIReference/API_TestMetricFilter.html)
+	input := &cloudwatchlogs.TestMetricFilterInput{
+		FilterPattern: aws.String(c.filterPattern),
+		LogEventMessages: []*string{
+			aws.String("This is a test log message to validate filter pattern syntax"),
+		},
+	}
+
+	_, err = cwLogClient.Client.TestMetricFilter(input)
+	if err != nil {
+		return fmt.Errorf("invalid filter pattern '%s': %v", c.filterPattern, err)
 	}
 
 	return nil

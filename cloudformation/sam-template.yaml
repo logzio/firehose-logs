@@ -27,7 +27,7 @@ Parameters:
     Default: 'logzio_firehose'
   services:
     Type: String
-    Description: A comma-seperated list of services you want to collect logs from
+    Description: A comma-separated list of services you want to collect logs from. Supported services include - apigateway, rds, cloudhsm, vpc, cloudtrail, codebuild, connect, elasticbeanstalk, ecs, eks, aws-glue, aws-iot, lambda, macie, amazon-mq, batch, athena, cloudfront, cloudwatch, codepipeline, config, dms, dynamodb, ec2, elasticache, elasticfilesystem, elasticloadbalancing, emr, es, events, firehose, fsx, guardduty, inspector, kafka, kinesis, kms, redshift, route53, s3, sagemaker, secretsmanager, sns, sqs, ssm, stepfunctions, transfer, waf, workspaces
   customLogGroups:
     Type: String
     Description: A comma-separated list of custom log groups to collect logs from, or the ARN of the secret parameter storing the log groups list if it exceeds 4096 characters.
@@ -64,6 +64,10 @@ Parameters:
     Type: Number
     Description: 'The size of the buffer, in MBs, that Kinesis Data Firehose uses for incoming data before delivering it to the destination'
     Default: 5
+  filterPattern:
+    Type: String
+    Description: 'CloudWatch Logs filter pattern to filter the logs being sent to Logz.io. Leave empty to send all logs. For more information on the syntax, see https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html.'
+    Default: ''
 
 Conditions:
   createEventbridgeTrigger: !Or
@@ -131,6 +135,7 @@ Resources:
           LOG_LEVEL: !Ref triggerLambdaLogLevel
           PUT_SF_ROLE: !GetAtt firehosePutSubscriptionFilterRole.Arn
           STACK_NAME: !Ref AWS::StackName
+          FILTER_PATTERN: !Ref filterPattern
 
   # Lambda permissions for log groups and using firehose
   cfnLambdaExecutionRole:
@@ -194,6 +199,7 @@ Resources:
                   - 'logs:DescribeLogGroups'
                   - 'logs:PutSubscriptionFilter'
                   - 'logs:DeleteSubscriptionFilter'
+                  - 'logs:TestMetricFilter'
                 Resource:
                   - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*'
                   - !GetAtt logzioFirehose.Arn
