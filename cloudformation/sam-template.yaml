@@ -40,7 +40,7 @@ Parameters:
     Type: Number
     Description: >-
       The amount of seconds that Lambda allows a function to run before stopping it, for the trigger function.
-    Default: 60
+    Default: 300
   triggerLambdaMemory:
     Type: Number
     Description: Trigger function's allocated CPU proportional to the memory configured, in MB.

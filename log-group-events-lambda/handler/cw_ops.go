@@ -62,7 +62,6 @@ func (cwLogsClient *CloudWatchLogsClient) addSubscriptionFilter(logGroups []stri
 					FilterPattern:  &filterPattern,
 					RoleArn:        &roleArn,
 				}
-
 				_, err := cwLogsClient.Client.PutSubscriptionFilter(filterInput)
 
 				// retry mechanism
