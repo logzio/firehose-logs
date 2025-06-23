@@ -99,6 +99,8 @@ Once new logs are added to your chosen log group, they will be sent to your Logz
 > If you've used the `services` field, you'll have to **wait 6 minutes** before creating new log groups for your chosen services. This is due to cold start and custom resource invocation, that can cause the Lambda to behave unexpectedly.
 
 ### Changelog:
+- **0.4.1**:
+  - Increase default timeout `60` -> `300`
 - **0.4.0**:
   - Added support for subscription filter patterns using the `filterPattern` parameter
   - Added support for additional AWS services: athena, cloudfront, cloudwatch, codepipeline, config, dms, dynamodb, ec2, elasticache, elasticfilesystem, elasticloadbalancing, emr, es, events, firehose, fsx, guardduty, inspector, kafka, kinesis, kms, redshift, route53, s3, sagemaker, secretsmanager, sns, sqs, ssm, stepfunctions, transfer, waf, workspaces
