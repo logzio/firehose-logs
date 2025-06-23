@@ -100,6 +100,7 @@ Once new logs are added to your chosen log group, they will be sent to your Logz
 
 ### Changelog:
 - **0.4.1**:
+  - Avoid retry on `LimitExceededException`
   - Increase default timeout `60` -> `300`
 - **0.4.0**:
   - Added support for subscription filter patterns using the `filterPattern` parameter
