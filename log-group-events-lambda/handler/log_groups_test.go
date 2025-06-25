@@ -2,13 +2,14 @@ package handler
 
 import (
 	"fmt"
+	"os"
+	"sort"
+	"testing"
+
 	"github.com/logzio/firehose-logs/common"
 	lp "github.com/logzio/firehose-logs/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"os"
-	"sort"
-	"testing"
 )
 
 type MockSecretCacheClient struct {
@@ -89,8 +90,8 @@ func TestGetServicesLogGroups(t *testing.T) {
 	}{
 		{
 			name:              "valid services",
-			services:          []string{"cloudtrail", "apigateway"},
-			expectedLogGroups: []string{"/aws/apigateway/g1", "/random/log/group"},
+			services:          []string{"lambda", "apigateway"},
+			expectedLogGroups: []string{"/aws/apigateway/g1", "/aws/lambda/g1"},
 		},
 		{
 			name:              "invalid services",
