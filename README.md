@@ -101,8 +101,6 @@ Once new logs are added to your chosen log group, they will be sent to your Logz
 ### Changelog:
 - **0.4.3**:
   - Fixed AWS log group prefixes for various services
-  - Split apigateway into apigateway-websocket and apigateway-rest types
-  - Removed services that don't write to CloudWatch Logs by default (cloudwatch, dynamodb, s3, elasticloadbalancing, kms, waf, ec2, elasticache, elasticfilesystem, sqs, workspaces, cloudtrail)
 - **0.4.2**:
   - Refactor aws namespaces prefix
 - **0.4.1**:
