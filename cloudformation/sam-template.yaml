@@ -27,7 +27,7 @@ Parameters:
     Default: 'logzio_firehose'
   services:
     Type: String
-    Description: A comma-separated list of services you want to collect logs from. Supported services include - apigateway, rds, cloudhsm, vpc, cloudtrail, codebuild, connect, elasticbeanstalk, ecs, eks, aws-glue, aws-iot, lambda, macie, amazon-mq, batch, athena, cloudfront, cloudwatch, codepipeline, config, dms, dynamodb, ec2, elasticache, elasticfilesystem, elasticloadbalancing, emr, es, events, firehose, fsx, guardduty, inspector, kafka, kinesis, kms, redshift, route53, s3, sagemaker, secretsmanager, sns, sqs, ssm, stepfunctions, transfer, waf, workspaces
+    Description: A comma-separated list of services you want to collect logs from. Supported services include - apigateway-websocket, apigateway-rest, rds, cloudhsm, vpc, codebuild, connect, elasticbeanstalk, ecs, eks, aws-glue, aws-iot, lambda, macie, amazon-mq, batch, athena, cloudfront, codepipeline, config, dms, emr, es, events, firehose, fsx, guardduty, inspector, kafka, kinesis, redshift, route53, sagemaker, secretsmanager, sns, ssm, stepfunctions, transfer
   customLogGroups:
     Type: String
     Description: A comma-separated list of custom log groups to collect logs from, or the ARN of the secret parameter storing the log groups list if it exceeds 4096 characters.
