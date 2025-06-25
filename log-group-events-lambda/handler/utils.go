@@ -21,7 +21,7 @@ func getServicesMap() map[string]string {
 		"vpc":              "/aws/vpc/",
 		"macie":            "/aws/macie/",
 		"amazon-mq":        "/aws/amazonmq/broker/",
-		"batch":            "/aws/batch/job",
+		"batch":            "/aws/batch/",
 		"athena":           "/aws-athena/",
 		"cloudfront":       "/aws/cloudfront/",
 		"codepipeline":     "/aws/codepipeline/",
