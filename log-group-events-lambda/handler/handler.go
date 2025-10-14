@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	awsArn "github.com/aws/aws-sdk-go/aws/arn"
+
 	"github.com/logzio/firehose-logs/common"
 	"github.com/logzio/firehose-logs/logger"
 	"go.uber.org/zap"
@@ -265,65 +267,27 @@ func handleDeleteEvent(ctx context.Context, event common.RequestParameters) (str
 	return "Event handled successfully", nil
 }
 
-func handleTagResourceEvent(ctx context.Context, taggedResource string) error {
-	resourceType, name := getResourceTypeFromArn(taggedResource)
-
-	switch resourceType {
-	case Lambda:
-		sugLog.Debug("Detected Lambda resource type: ", name)
-		logGroupName, err := getLambdaLogGroupName(name)
-		if err != nil {
-			sugLog.Error("Failed to get Lambda log group name: ", err.Error())
-			return err
-		}
-		handleNewLogGroupEvent(ctx, logGroupName)
-	case LogGroup:
-		handleNewLogGroupEvent(ctx, name)
+func handleTagResourceEvent(ctx context.Context, taggedResource string) (string, error) {
+	if !awsArn.IsARN(taggedResource) {
+		return "", fmt.Errorf("provided string is not AWS arn")
 	}
 
-	return nil
-}
-
-func getResourceTypeFromArn(arn string) (awsResourceType, string) { //TODO: check aws lib arn parser
-	parts := strings.Split(arn, ":")
-	if len(parts) < 6 {
-		return Undefined, ""
+	resourceType, err := awsArn.Parse(taggedResource)
+	if err != nil {
+		return "", fmt.Errorf("unable to parse aws arn")
 	}
 
-	if parts[0] != "arn" {
-		return Undefined, ""
+	parts := strings.SplitN(resourceType.Resource, ":", 2)
+	if len(parts) != 2 {
+		return "", fmt.Errorf("unable to get name from arn.resource ")
 	}
 
-	service := parts[2]
-
-	switch service {
+	switch resourceType.Service {
 	case "lambda":
-		if len(parts) >= 6 && parts[5] == "function" {
-			return Lambda, arn
-		}
+		handleNewLogGroupEvent(ctx, fmt.Sprintf("/aws/lambda/%s", parts[1]))
 	case "logs":
-		if len(parts) >= 6 && parts[5] == "log-group" {
-			logGroupName := strings.Join(parts[6:], ":")
-			return LogGroup, logGroupName
-		}
+		handleNewLogGroupEvent(ctx, parts[1])
 	}
 
-	return Undefined, ""
-}
-
-func getLambdaLogGroupName(lambdaArn string) (string, error) { //TODO: fetch loggroup from lambda configuration.
-	parts := strings.Split(lambdaArn, ":")
-
-	if len(parts) < 7 {
-		return "", fmt.Errorf("invalid Lambda ARN format: %s", lambdaArn)
-	}
-
-	if parts[0] != "arn" || parts[2] != "lambda" || parts[5] != "function" {
-		return "", fmt.Errorf("not a valid Lambda function ARN: %s", lambdaArn)
-	}
-
-	functionName := strings.Join(parts[6:], ":")
-	logGroupName := fmt.Sprintf("/aws/lambda/%s", functionName)
-
-	return logGroupName, nil
+	return "Tag Resource Event handled successfully.", nil
 }
