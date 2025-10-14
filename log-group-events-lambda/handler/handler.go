@@ -3,9 +3,10 @@ package handler
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	awsArn "github.com/aws/aws-sdk-go/aws/arn"
+
+	"strings"
 
 	"github.com/logzio/firehose-logs/common"
 	"github.com/logzio/firehose-logs/logger"
