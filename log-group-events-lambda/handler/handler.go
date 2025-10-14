@@ -6,11 +6,10 @@ import (
 
 	awsArn "github.com/aws/aws-sdk-go/aws/arn"
 
-	"strings"
-
 	"github.com/logzio/firehose-logs/common"
 	"github.com/logzio/firehose-logs/logger"
 	"go.uber.org/zap"
+	"strings"
 )
 
 var sugLog *zap.SugaredLogger
