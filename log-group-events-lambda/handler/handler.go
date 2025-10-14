@@ -16,14 +16,6 @@ import (
 var sugLog *zap.SugaredLogger
 var envConfig *Config
 
-type awsResourceType int
-
-const (
-	Undefined awsResourceType = iota
-	Lambda
-	LogGroup
-)
-
 func HandleRequest(ctx context.Context, event map[string]interface{}) (string, error) {
 	sugLog = logger.GetSugaredLogger()
 
