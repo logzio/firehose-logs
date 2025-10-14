@@ -87,7 +87,7 @@ func HandleRequest(ctx context.Context, event map[string]interface{}) (string, e
 			return "", fmt.Errorf("`resource` is not of type string or missing from EventBridge event")
 		}
 		_, err := handleTagResourceEvent(ctx, taggedResource)
-		
+
 		if err != nil {
 			return "", err
 		}
@@ -117,6 +117,7 @@ func HandleRequest(ctx context.Context, event map[string]interface{}) (string, e
 			sugLog.Debug("Detected unsupported Subscription Filter event")
 			return "", fmt.Errorf("unsupported Subscription Filter event")
 		}
+
 	default:
 		sugLog.Debug("Detected unsupported event")
 		return "", fmt.Errorf("unsupported event")
