@@ -81,7 +81,10 @@ func HandleRequest(ctx context.Context, event map[string]interface{}) (string, e
 			sugLog.Errorf("`resourceArn` is not of type string or missing from EventBridge event")
 			return "", fmt.Errorf("`resourceArn` is not of type string or missing from EventBridge event 2")
 		}
-		handleTagResourceEvent(ctx, taggedResource)
+		_, err := handleTagResourceEvent(ctx, taggedResource)
+		if err != nil {
+			return "", err
+		}
 
 	case "TagResource20170331v2":
 		sugLog.Debug("Detected EventBridge TagResource20170331v2 event")
@@ -91,7 +94,10 @@ func HandleRequest(ctx context.Context, event map[string]interface{}) (string, e
 			sugLog.Errorf("`resource` is not of type string or missing from EventBridge event.")
 			return "", fmt.Errorf("`resource` is not of type string or missing from EventBridge event")
 		}
-		handleTagResourceEvent(ctx, taggedResource)
+		_, err := handleTagResourceEvent(ctx, taggedResource)
+		if err != nil {
+			return "", err
+		}
 
 	case "SubscriptionFilterEvent":
 		sugLog.Debug("Detected SubscriptionFilterEvent event")
