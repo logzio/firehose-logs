@@ -71,7 +71,7 @@ func HandleRequest(ctx context.Context, event map[string]interface{}) (string, e
 		taggedResource, ok := requestParameters["resourceArn"].(string)
 		if !ok {
 			sugLog.Errorf("`resourceArn` is not of type string or missing from EventBridge event")
-			return "", fmt.Errorf("`resourceArn` is not of type string or missing from EventBridge event 2")
+			return "", fmt.Errorf("`resourceArn` is not of type string or missing from EventBridge event")
 		}
 		_, err := handleTagResourceEvent(ctx, taggedResource)
 		if err != nil {
