@@ -3,14 +3,23 @@ package handler
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"github.com/logzio/firehose-logs/common"
 	"github.com/logzio/firehose-logs/logger"
 	"go.uber.org/zap"
-	"strings"
 )
 
 var sugLog *zap.SugaredLogger
 var envConfig *Config
+
+type awsResourceType int
+
+const (
+	Undefined awsResourceType = iota
+	Lambda
+	LogGroup
+)
 
 func HandleRequest(ctx context.Context, event map[string]interface{}) (string, error) {
 	sugLog = logger.GetSugaredLogger()
@@ -61,6 +70,14 @@ func HandleRequest(ctx context.Context, event map[string]interface{}) (string, e
 		if err != nil {
 			return "", err
 		}
+	case "TagResource":
+		sugLog.Debug("Detected EventBridge TagResource event")
+		taggedResource, ok := requestParameters["resourceARN"].(string)
+		if !ok {
+			sugLog.Error("`resourceARN` is not of type string or missing from EventBridge event")
+			return "", fmt.Errorf("`resourceARN` is not of type string or missing from EventBridge event")
+		}
+		handleTagResourceEvent(ctx, taggedResource)
 
 	case "SubscriptionFilterEvent":
 		sugLog.Debug("Detected SubscriptionFilterEvent event")
@@ -87,7 +104,6 @@ func HandleRequest(ctx context.Context, event map[string]interface{}) (string, e
 			sugLog.Debug("Detected unsupported Subscription Filter event")
 			return "", fmt.Errorf("unsupported Subscription Filter event")
 		}
-
 	default:
 		sugLog.Debug("Detected unsupported event")
 		return "", fmt.Errorf("unsupported event")
@@ -235,4 +251,67 @@ func handleDeleteEvent(ctx context.Context, event common.RequestParameters) (str
 
 	sugLog.Info("Deleted subscription filters for the following log groups: ", deleted)
 	return "Event handled successfully", nil
+}
+
+func handleTagResourceEvent(ctx context.Context, taggedResource string) error {
+	resourceType, name := getResourceTypeFromArn(taggedResource)
+
+	switch resourceType {
+	case Lambda:
+		sugLog.Debug("Detected Lambda resource type: ", name)
+		logGroupName, err := getLambdaLogGroupName(name)
+		if err != nil {
+			sugLog.Error("Failed to get Lambda log group name: ", err.Error())
+			return err
+		}
+		handleNewLogGroupEvent(ctx, logGroupName)
+	case LogGroup:
+		handleNewLogGroupEvent(ctx, name)
+	}
+
+	return nil
+}
+
+func getResourceTypeFromArn(arn string) (awsResourceType, string) {
+	parts := strings.Split(arn, ":")
+	if len(parts) < 6 {
+		return Undefined, ""
+	}
+
+	if parts[0] != "arn" {
+		return Undefined, ""
+	}
+
+	service := parts[2]
+
+	switch service {
+	case "lambda":
+		if len(parts) >= 6 && parts[5] == "function" {
+			return Lambda, arn
+		}
+	case "logs":
+		if len(parts) >= 6 && parts[5] == "log-group" {
+			logGroupName := strings.Join(parts[6:], ":")
+			return LogGroup, logGroupName
+		}
+	}
+
+	return Undefined, ""
+}
+
+func getLambdaLogGroupName(lambdaArn string) (string, error) {
+	parts := strings.Split(lambdaArn, ":")
+
+	if len(parts) < 7 {
+		return "", fmt.Errorf("invalid Lambda ARN format: %s", lambdaArn)
+	}
+
+	if parts[0] != "arn" || parts[2] != "lambda" || parts[5] != "function" {
+		return "", fmt.Errorf("not a valid Lambda function ARN: %s", lambdaArn)
+	}
+
+	functionName := strings.Join(parts[6:], ":")
+	logGroupName := fmt.Sprintf("/aws/lambda/%s", functionName)
+
+	return logGroupName, nil
 }
