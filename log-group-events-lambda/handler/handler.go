@@ -70,12 +70,24 @@ func HandleRequest(ctx context.Context, event map[string]interface{}) (string, e
 		if err != nil {
 			return "", err
 		}
+
 	case "TagResource":
 		sugLog.Debug("Detected EventBridge TagResource event")
-		taggedResource, ok := requestParameters["resourceARN"].(string)
+
+		taggedResource, ok := requestParameters["resourceArn"].(string)
 		if !ok {
-			sugLog.Error("`resourceARN` is not of type string or missing from EventBridge event")
-			return "", fmt.Errorf("`resourceARN` is not of type string or missing from EventBridge event")
+			sugLog.Errorf("`resourceArn` is not of type string or missing from EventBridge event")
+			return "", fmt.Errorf("`resourceArn` is not of type string or missing from EventBridge event 2")
+		}
+		handleTagResourceEvent(ctx, taggedResource)
+
+	case "TagResource20170331v2":
+		sugLog.Debug("Detected EventBridge TagResource20170331v2 event")
+
+		taggedResource, ok := requestParameters["resource"].(string)
+		if !ok {
+			sugLog.Errorf("`resource` is not of type string or missing from EventBridge event.")
+			return "", fmt.Errorf("`resource` is not of type string or missing from EventBridge event")
 		}
 		handleTagResourceEvent(ctx, taggedResource)
 
@@ -272,7 +284,7 @@ func handleTagResourceEvent(ctx context.Context, taggedResource string) error {
 	return nil
 }
 
-func getResourceTypeFromArn(arn string) (awsResourceType, string) {
+func getResourceTypeFromArn(arn string) (awsResourceType, string) { //TODO: check aws lib arn parser
 	parts := strings.Split(arn, ":")
 	if len(parts) < 6 {
 		return Undefined, ""
@@ -299,7 +311,7 @@ func getResourceTypeFromArn(arn string) (awsResourceType, string) {
 	return Undefined, ""
 }
 
-func getLambdaLogGroupName(lambdaArn string) (string, error) {
+func getLambdaLogGroupName(lambdaArn string) (string, error) { //TODO: fetch loggroup from lambda configuration.
 	parts := strings.Split(lambdaArn, ":")
 
 	if len(parts) < 7 {
