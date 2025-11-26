@@ -85,6 +85,35 @@ func TestNewConfigValid(t *testing.T) {
 	assert.Equal(t, "", conf.customGroupsValue)
 	assert.Equal(t, "", conf.servicesValue)
 	assert.Equal(t, "", conf.region)
+	// Test default monitoring tag values
+	assert.Equal(t, "logzio:logs", conf.monitoringTagKey)
+	assert.Equal(t, "true", conf.monitoringTagValue)
+}
+
+func TestNewConfigWithCustomMonitoringTag(t *testing.T) {
+	InitConfigTest()
+
+	err := os.Setenv(envFirehoseArn, "test-arn")
+	assert.Nil(t, err)
+	err = os.Setenv(envAccountId, "aws-account-id")
+	assert.Nil(t, err)
+	err = os.Setenv(envAwsPartition, "test-partition")
+	assert.Nil(t, err)
+	err = os.Setenv(envMonitoringTagKey, "CustomTag")
+	assert.Nil(t, err)
+	err = os.Setenv(envMonitoringTagValue, "enabled")
+	assert.Nil(t, err)
+
+	conf := NewConfig()
+	assert.NotNil(t, conf)
+	
+	// Test custom monitoring tag values
+	assert.Equal(t, "CustomTag", conf.monitoringTagKey)
+	assert.Equal(t, "enabled", conf.monitoringTagValue)
+	
+	// Clean up
+	os.Unsetenv(envMonitoringTagKey)
+	os.Unsetenv(envMonitoringTagValue)
 }
 
 func TestValidateRequired(t *testing.T) {

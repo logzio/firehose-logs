@@ -73,6 +73,13 @@ func HandleRequest(ctx context.Context, event map[string]interface{}) (string, e
 			sugLog.Errorf("`resourceArn` is not of type string or missing from EventBridge event")
 			return "", fmt.Errorf("`resourceArn` is not of type string or missing from EventBridge event")
 		}
+
+		// Check if the monitoring tag is present
+		if !hasMonitoringTag(requestParameters) {
+			sugLog.Debugf("Skipping TagResource event - monitoring tag %s: %s not present", envConfig.monitoringTagKey, envConfig.monitoringTagValue)
+			return "TagResource event skipped - monitoring tag not present", nil
+		}
+
 		_, err := handleTagResourceEvent(ctx, taggedResource)
 		if err != nil {
 			return "", err
@@ -86,6 +93,13 @@ func HandleRequest(ctx context.Context, event map[string]interface{}) (string, e
 			sugLog.Errorf("`resource` is not of type string or missing from EventBridge event.")
 			return "", fmt.Errorf("`resource` is not of type string or missing from EventBridge event")
 		}
+
+		// Check if the monitoring tag is present
+		if !hasMonitoringTag(requestParameters) {
+			sugLog.Debugf("Skipping TagResource20170331v2 event - monitoring tag %s: %s not present", envConfig.monitoringTagKey, envConfig.monitoringTagValue)
+			return "TagResource20170331v2 event skipped - monitoring tag not present", nil
+		}
+
 		_, err := handleTagResourceEvent(ctx, taggedResource)
 
 		if err != nil {
@@ -265,6 +279,31 @@ func handleDeleteEvent(ctx context.Context, event common.RequestParameters) (str
 
 	sugLog.Info("Deleted subscription filters for the following log groups: ", deleted)
 	return "Event handled successfully", nil
+}
+
+// hasMonitoringTag checks if the configured monitoring tag is present in the request parameters
+func hasMonitoringTag(requestParameters map[string]interface{}) bool {
+	tags, ok := requestParameters["tags"].(map[string]interface{})
+	if !ok {
+		sugLog.Debug("No tags found in requestParameters or tags is not a map")
+		return false
+	}
+
+	expectedKey := envConfig.monitoringTagKey
+	expectedValue := envConfig.monitoringTagValue
+
+	// Check for monitoring tag (case-insensitive) with expected value (case-insensitive)
+	for key, value := range tags {
+		if strings.EqualFold(key, expectedKey) {
+			if valueStr, ok := value.(string); ok && strings.EqualFold(valueStr, expectedValue) {
+				sugLog.Debugf("Found monitoring tag %s: %s", expectedKey, expectedValue)
+				return true
+			}
+		}
+	}
+
+	sugLog.Debugf("Monitoring tag %s: %s not found", expectedKey, expectedValue)
+	return false
 }
 
 func handleTagResourceEvent(ctx context.Context, taggedResource string) (string, error) {

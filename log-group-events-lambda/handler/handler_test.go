@@ -130,7 +130,7 @@ func TestTagResourceEventHandling(t *testing.T) {
 					"requestParameters": map[string]interface{}{
 						"resourceArn": "arn:aws:logs:us-east-1:123456789012:log-group:/aws/lambda/my-function",
 						"tags": map[string]interface{}{
-							"LogzIO": "True",
+							"logzio:logs": "true",
 						},
 					},
 				},
@@ -145,7 +145,7 @@ func TestTagResourceEventHandling(t *testing.T) {
 					"eventName": "TagResource",
 					"requestParameters": map[string]interface{}{
 						"tags": map[string]interface{}{
-							"LogzIO": "True",
+							"logzio:logs": "true",
 						},
 					},
 				},
@@ -161,7 +161,7 @@ func TestTagResourceEventHandling(t *testing.T) {
 					"requestParameters": map[string]interface{}{
 						"resourceArn": "not-an-arn",
 						"tags": map[string]interface{}{
-							"LogzIO": "True",
+							"logzio:logs": "true",
 						},
 					},
 				},
@@ -177,7 +177,7 @@ func TestTagResourceEventHandling(t *testing.T) {
 					"requestParameters": map[string]interface{}{
 						"resource": "arn:aws:lambda:us-east-1:123456789012:function:my-payment-processor",
 						"tags": map[string]interface{}{
-							"LogzIO": "True",
+							"logzio:logs": "true",
 						},
 					},
 				},
@@ -192,7 +192,7 @@ func TestTagResourceEventHandling(t *testing.T) {
 					"eventName": "TagResource20170331v2",
 					"requestParameters": map[string]interface{}{
 						"tags": map[string]interface{}{
-							"LogzIO": "True",
+							"logzio:logs": "true",
 						},
 					},
 				},
@@ -208,7 +208,7 @@ func TestTagResourceEventHandling(t *testing.T) {
 					"requestParameters": map[string]interface{}{
 						"resource": "invalid-lambda-arn",
 						"tags": map[string]interface{}{
-							"LogzIO": "True",
+							"logzio:logs": "true",
 						},
 					},
 				},
@@ -224,7 +224,7 @@ func TestTagResourceEventHandling(t *testing.T) {
 					"requestParameters": map[string]interface{}{
 						"resourceArn": "arn:aws:logs:us-east-1:123456789012:log-group:/aws/lambda/my-function:with:colons",
 						"tags": map[string]interface{}{
-							"LogzIO": "True",
+							"logzio:logs": "true",
 						},
 					},
 				},
@@ -240,7 +240,7 @@ func TestTagResourceEventHandling(t *testing.T) {
 					"requestParameters": map[string]interface{}{
 						"resource": "arn:aws:lambda:us-east-1:123456789012:function:my-function:alias",
 						"tags": map[string]interface{}{
-							"LogzIO": "True",
+							"logzio:logs": "true",
 						},
 					},
 				},
@@ -261,6 +261,361 @@ func TestTagResourceEventHandling(t *testing.T) {
 				assert.Nil(t, err)
 				assert.Equal(t, test.expectedOutputMsg, res)
 			}
+		})
+	}
+}
+
+func TestHasMonitoringTag(t *testing.T) {
+	// Initialize logger and config (normally done in HandleRequest)
+	sugLog = logger.GetSugaredLogger()
+	envConfig = NewConfig()
+
+	tests := []struct {
+		name              string
+		requestParameters map[string]interface{}
+		expectedResult    bool
+	}{
+		{
+			name: "Default monitoring tag logzio:logs with true value (lowercase)",
+			requestParameters: map[string]interface{}{
+				"tags": map[string]interface{}{
+					"logzio:logs": "true",
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			name: "Default monitoring tag with True value (capitalized)",
+			requestParameters: map[string]interface{}{
+				"tags": map[string]interface{}{
+					"logzio:logs": "True",
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			name: "Default monitoring tag with TRUE value (all uppercase)",
+			requestParameters: map[string]interface{}{
+				"tags": map[string]interface{}{
+					"LOGZIO:LOGS": "TRUE",
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			name: "Default monitoring tag with mixed case",
+			requestParameters: map[string]interface{}{
+				"tags": map[string]interface{}{
+					"LogzIO:Logs": "TrUe",
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			name: "Monitoring tag with False value",
+			requestParameters: map[string]interface{}{
+				"tags": map[string]interface{}{
+					"logzio:logs": "False",
+				},
+			},
+			expectedResult: false,
+		},
+		{
+			name: "Monitoring tag with empty value",
+			requestParameters: map[string]interface{}{
+				"tags": map[string]interface{}{
+					"logzio:logs": "",
+				},
+			},
+			expectedResult: false,
+		},
+		{
+			name: "Different tag present",
+			requestParameters: map[string]interface{}{
+				"tags": map[string]interface{}{
+					"Environment": "Production",
+				},
+			},
+			expectedResult: false,
+		},
+		{
+			name: "Multiple tags without monitoring tag",
+			requestParameters: map[string]interface{}{
+				"tags": map[string]interface{}{
+					"Environment": "Production",
+					"CostCenter":  "Engineering",
+					"Team":        "Backend",
+				},
+			},
+			expectedResult: false,
+		},
+		{
+			name: "Multiple tags with monitoring tag",
+			requestParameters: map[string]interface{}{
+				"tags": map[string]interface{}{
+					"Environment": "Production",
+					"logzio:logs": "true",
+					"CostCenter":  "Engineering",
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			name:              "No tags field in requestParameters",
+			requestParameters: map[string]interface{}{},
+			expectedResult:    false,
+		},
+		{
+			name: "Tags field is not a map",
+			requestParameters: map[string]interface{}{
+				"tags": "not-a-map",
+			},
+			expectedResult: false,
+		},
+		{
+			name:              "Empty requestParameters",
+			requestParameters: map[string]interface{}{},
+			expectedResult:    false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := hasMonitoringTag(test.requestParameters)
+			assert.Equal(t, test.expectedResult, result)
+		})
+	}
+}
+
+func TestHasMonitoringTagWithCustomConfig(t *testing.T) {
+	ctx := setupHandlerTest()
+
+	// Set custom monitoring tag configuration
+	err := os.Setenv("MONITORING_TAG_KEY", "MyCustomTag")
+	assert.Nil(t, err)
+	err = os.Setenv("MONITORING_TAG_VALUE", "enabled")
+	assert.Nil(t, err)
+
+	tests := []struct {
+		name              string
+		event             map[string]interface{}
+		expectedOutputMsg string
+		expectedError     bool
+	}{
+		{
+			name: "TagResource with custom monitoring tag should be processed",
+			event: map[string]interface{}{
+				"detail": map[string]interface{}{
+					"eventName": "TagResource",
+					"requestParameters": map[string]interface{}{
+						"resourceArn": "arn:aws:logs:us-east-1:123456789012:log-group:/aws/lambda/my-function",
+						"tags": map[string]interface{}{
+							"MyCustomTag": "enabled",
+						},
+					},
+				},
+			},
+			expectedOutputMsg: "TagResource event handled successfully",
+			expectedError:     false,
+		},
+		{
+			name: "TagResource with custom tag in different case should be processed",
+			event: map[string]interface{}{
+				"detail": map[string]interface{}{
+					"eventName": "TagResource",
+					"requestParameters": map[string]interface{}{
+						"resourceArn": "arn:aws:logs:us-east-1:123456789012:log-group:/aws/lambda/my-function",
+						"tags": map[string]interface{}{
+							"mycustomtag": "ENABLED",
+						},
+					},
+				},
+			},
+			expectedOutputMsg: "TagResource event handled successfully",
+			expectedError:     false,
+		},
+		{
+			name: "TagResource with default tag should be skipped (custom config active)",
+			event: map[string]interface{}{
+				"detail": map[string]interface{}{
+					"eventName": "TagResource",
+					"requestParameters": map[string]interface{}{
+						"resourceArn": "arn:aws:logs:us-east-1:123456789012:log-group:/aws/lambda/my-function",
+						"tags": map[string]interface{}{
+							"logzio:logs": "true",
+						},
+					},
+				},
+			},
+			expectedOutputMsg: "TagResource event skipped - monitoring tag not present",
+			expectedError:     false,
+		},
+		{
+			name: "TagResource with wrong custom value should be skipped",
+			event: map[string]interface{}{
+				"detail": map[string]interface{}{
+					"eventName": "TagResource",
+					"requestParameters": map[string]interface{}{
+						"resourceArn": "arn:aws:logs:us-east-1:123456789012:log-group:/aws/lambda/my-function",
+						"tags": map[string]interface{}{
+							"MyCustomTag": "disabled",
+						},
+					},
+				},
+			},
+			expectedOutputMsg: "TagResource event skipped - monitoring tag not present",
+			expectedError:     false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			res, err := HandleRequest(ctx, test.event)
+
+			if test.expectedError {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
+			assert.Equal(t, test.expectedOutputMsg, res)
+		})
+	}
+
+	// Clean up custom environment variables
+	os.Unsetenv("MONITORING_TAG_KEY")
+	os.Unsetenv("MONITORING_TAG_VALUE")
+}
+
+func TestTagResourceEventSkippedWithoutMonitoringTag(t *testing.T) {
+	ctx := setupHandlerTest()
+
+	tests := []struct {
+		name              string
+		event             map[string]interface{}
+		expectedOutputMsg string
+		expectedError     bool
+	}{
+		{
+			name: "TagResource event without monitoring tag should be skipped",
+			event: map[string]interface{}{
+				"detail": map[string]interface{}{
+					"eventName": "TagResource",
+					"requestParameters": map[string]interface{}{
+						"resourceArn": "arn:aws:logs:us-east-1:123456789012:log-group:/aws/lambda/my-function",
+						"tags": map[string]interface{}{
+							"Environment": "Production",
+						},
+					},
+				},
+			},
+			expectedOutputMsg: "TagResource event skipped - monitoring tag not present",
+			expectedError:     false,
+		},
+		{
+			name: "TagResource event with monitoring tag: false should be skipped",
+			event: map[string]interface{}{
+				"detail": map[string]interface{}{
+					"eventName": "TagResource",
+					"requestParameters": map[string]interface{}{
+						"resourceArn": "arn:aws:logs:us-east-1:123456789012:log-group:/aws/lambda/my-function",
+						"tags": map[string]interface{}{
+							"logzio:logs": "False",
+						},
+					},
+				},
+			},
+			expectedOutputMsg: "TagResource event skipped - monitoring tag not present",
+			expectedError:     false,
+		},
+		{
+			name: "TagResource event without tags field should be skipped",
+			event: map[string]interface{}{
+				"detail": map[string]interface{}{
+					"eventName": "TagResource",
+					"requestParameters": map[string]interface{}{
+						"resourceArn": "arn:aws:logs:us-east-1:123456789012:log-group:/aws/lambda/my-function",
+					},
+				},
+			},
+			expectedOutputMsg: "TagResource event skipped - monitoring tag not present",
+			expectedError:     false,
+		},
+		{
+			name: "TagResource20170331v2 event without monitoring tag should be skipped",
+			event: map[string]interface{}{
+				"detail": map[string]interface{}{
+					"eventName": "TagResource20170331v2",
+					"requestParameters": map[string]interface{}{
+						"resource": "arn:aws:lambda:us-east-1:123456789012:function:my-payment-processor",
+						"tags": map[string]interface{}{
+							"CostCenter": "Engineering",
+						},
+					},
+				},
+			},
+			expectedOutputMsg: "TagResource20170331v2 event skipped - monitoring tag not present",
+			expectedError:     false,
+		},
+		{
+			name: "TagResource20170331v2 event with monitoring tag: false should be skipped",
+			event: map[string]interface{}{
+				"detail": map[string]interface{}{
+					"eventName": "TagResource20170331v2",
+					"requestParameters": map[string]interface{}{
+						"resource": "arn:aws:lambda:us-east-1:123456789012:function:my-payment-processor",
+						"tags": map[string]interface{}{
+							"logzio:logs": "false",
+						},
+					},
+				},
+			},
+			expectedOutputMsg: "TagResource20170331v2 event skipped - monitoring tag not present",
+			expectedError:     false,
+		},
+		{
+			name: "TagResource event with monitoring tag: true should be processed",
+			event: map[string]interface{}{
+				"detail": map[string]interface{}{
+					"eventName": "TagResource",
+					"requestParameters": map[string]interface{}{
+						"resourceArn": "arn:aws:logs:us-east-1:123456789012:log-group:/aws/lambda/my-function",
+						"tags": map[string]interface{}{
+							"logzio:logs": "true",
+						},
+					},
+				},
+			},
+			expectedOutputMsg: "TagResource event handled successfully",
+			expectedError:     false,
+		},
+		{
+			name: "TagResource20170331v2 event with monitoring tag: true should be processed",
+			event: map[string]interface{}{
+				"detail": map[string]interface{}{
+					"eventName": "TagResource20170331v2",
+					"requestParameters": map[string]interface{}{
+						"resource": "arn:aws:lambda:us-east-1:123456789012:function:my-payment-processor",
+						"tags": map[string]interface{}{
+							"logzio:logs": "true",
+						},
+					},
+				},
+			},
+			expectedOutputMsg: "TagResource20170331v2 event handled successfully",
+			expectedError:     false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			res, err := HandleRequest(ctx, test.event)
+
+			if test.expectedError {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
+			assert.Equal(t, test.expectedOutputMsg, res)
 		})
 	}
 }
