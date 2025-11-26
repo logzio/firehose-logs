@@ -6,10 +6,11 @@ import (
 
 	awsArn "github.com/aws/aws-sdk-go/aws/arn"
 
+	"strings"
+
 	"github.com/logzio/firehose-logs/common"
 	"github.com/logzio/firehose-logs/logger"
 	"go.uber.org/zap"
-	"strings"
 )
 
 var sugLog *zap.SugaredLogger
@@ -68,6 +69,11 @@ func HandleRequest(ctx context.Context, event map[string]interface{}) (string, e
 	case "TagResource":
 		sugLog.Debug("Detected EventBridge TagResource event")
 
+		if !envConfig.tagEventsEnabled {
+			sugLog.Debug("Skipping TagResource event - TAG_EVENTS_ENABLED is not set to true")
+			return "TagResource event skipped - feature disabled", nil
+		}
+
 		taggedResource, ok := requestParameters["resourceArn"].(string)
 		if !ok {
 			sugLog.Errorf("`resourceArn` is not of type string or missing from EventBridge event")
@@ -88,13 +94,17 @@ func HandleRequest(ctx context.Context, event map[string]interface{}) (string, e
 	case "TagResource20170331v2":
 		sugLog.Debug("Detected EventBridge TagResource20170331v2 event")
 
+		if !envConfig.tagEventsEnabled {
+			sugLog.Debug("Skipping TagResource20170331v2 event - TAG_EVENTS_ENABLED is not set to true")
+			return "TagResource20170331v2 event skipped - feature disabled", nil
+		}
+
 		taggedResource, ok := requestParameters["resource"].(string)
 		if !ok {
 			sugLog.Errorf("`resource` is not of type string or missing from EventBridge event.")
 			return "", fmt.Errorf("`resource` is not of type string or missing from EventBridge event")
 		}
 
-		// Check if the monitoring tag is present
 		if !hasMonitoringTag(requestParameters) {
 			sugLog.Debugf("Skipping TagResource20170331v2 event - monitoring tag %s: %s not present", envConfig.monitoringTagKey, envConfig.monitoringTagValue)
 			return "TagResource20170331v2 event skipped - monitoring tag not present", nil

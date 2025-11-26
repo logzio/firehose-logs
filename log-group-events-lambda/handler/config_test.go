@@ -116,6 +116,73 @@ func TestNewConfigWithCustomMonitoringTag(t *testing.T) {
 	os.Unsetenv(envMonitoringTagValue)
 }
 
+func TestNewConfigTagEventsEnabled(t *testing.T) {
+	InitConfigTest()
+
+	tests := []struct {
+		name             string
+		envValue         string
+		expectedEnabled  bool
+	}{
+		{
+			name:            "TAG_EVENTS_ENABLED not set (default)",
+			envValue:        "",
+			expectedEnabled: false,
+		},
+		{
+			name:            "TAG_EVENTS_ENABLED set to true",
+			envValue:        "true",
+			expectedEnabled: true,
+		},
+		{
+			name:            "TAG_EVENTS_ENABLED set to True",
+			envValue:        "True",
+			expectedEnabled: true,
+		},
+		{
+			name:            "TAG_EVENTS_ENABLED set to TRUE",
+			envValue:        "TRUE",
+			expectedEnabled: true,
+		},
+		{
+			name:            "TAG_EVENTS_ENABLED set to false",
+			envValue:        "false",
+			expectedEnabled: false,
+		},
+		{
+			name:            "TAG_EVENTS_ENABLED set to invalid value",
+			envValue:        "yes",
+			expectedEnabled: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Setup required env variables
+			err := os.Setenv(envFirehoseArn, "test-arn")
+			assert.Nil(t, err)
+			err = os.Setenv(envAccountId, "aws-account-id")
+			assert.Nil(t, err)
+			err = os.Setenv(envAwsPartition, "test-partition")
+			assert.Nil(t, err)
+
+			if test.envValue != "" {
+				err = os.Setenv(envTagEventsEnabled, test.envValue)
+				assert.Nil(t, err)
+			} else {
+				os.Unsetenv(envTagEventsEnabled)
+			}
+
+			conf := NewConfig()
+			assert.NotNil(t, conf)
+			assert.Equal(t, test.expectedEnabled, conf.tagEventsEnabled)
+
+			// Clean up
+			os.Unsetenv(envTagEventsEnabled)
+		})
+	}
+}
+
 func TestValidateRequired(t *testing.T) {
 	/* Setup tests */
 	InitConfigTest()

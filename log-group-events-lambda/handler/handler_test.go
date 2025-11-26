@@ -116,6 +116,11 @@ func TestUnsupportedEventHandling(t *testing.T) {
 func TestTagResourceEventHandling(t *testing.T) {
 	ctx := setupHandlerTest()
 
+	// Enable tag events for this test
+	err := os.Setenv("TAG_EVENTS_ENABLED", "true")
+	assert.Nil(t, err)
+	defer os.Unsetenv("TAG_EVENTS_ENABLED")
+
 	tests := []struct {
 		name              string
 		event             map[string]interface{}
@@ -395,6 +400,9 @@ func TestHasMonitoringTagWithCustomConfig(t *testing.T) {
 	assert.Nil(t, err)
 	err = os.Setenv("MONITORING_TAG_VALUE", "enabled")
 	assert.Nil(t, err)
+	// Enable tag events for this test
+	err = os.Setenv("TAG_EVENTS_ENABLED", "true")
+	assert.Nil(t, err)
 
 	tests := []struct {
 		name              string
@@ -484,10 +492,138 @@ func TestHasMonitoringTagWithCustomConfig(t *testing.T) {
 	// Clean up custom environment variables
 	os.Unsetenv("MONITORING_TAG_KEY")
 	os.Unsetenv("MONITORING_TAG_VALUE")
+	os.Unsetenv("TAG_EVENTS_ENABLED")
+}
+
+func TestTagEventsDisabledByDefault(t *testing.T) {
+	ctx := setupHandlerTest()
+	// Do not set TAG_EVENTS_ENABLED - should default to false
+
+	tests := []struct {
+		name              string
+		event             map[string]interface{}
+		expectedOutputMsg string
+		expectedError     bool
+	}{
+		{
+			name: "TagResource event should be skipped when TAG_EVENTS_ENABLED is not set",
+			event: map[string]interface{}{
+				"detail": map[string]interface{}{
+					"eventName": "TagResource",
+					"requestParameters": map[string]interface{}{
+						"resourceArn": "arn:aws:logs:us-east-1:123456789012:log-group:/aws/lambda/my-function",
+						"tags": map[string]interface{}{
+							"logzio:logs": "true",
+						},
+					},
+				},
+			},
+			expectedOutputMsg: "TagResource event skipped - feature disabled",
+			expectedError:     false,
+		},
+		{
+			name: "TagResource20170331v2 event should be skipped when TAG_EVENTS_ENABLED is not set",
+			event: map[string]interface{}{
+				"detail": map[string]interface{}{
+					"eventName": "TagResource20170331v2",
+					"requestParameters": map[string]interface{}{
+						"resource": "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+						"tags": map[string]interface{}{
+							"logzio:logs": "true",
+						},
+					},
+				},
+			},
+			expectedOutputMsg: "TagResource20170331v2 event skipped - feature disabled",
+			expectedError:     false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			res, err := HandleRequest(ctx, test.event)
+
+			if test.expectedError {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
+			assert.Equal(t, test.expectedOutputMsg, res)
+		})
+	}
+}
+
+func TestTagEventsEnabled(t *testing.T) {
+	ctx := setupHandlerTest()
+
+	// Enable tag events
+	err := os.Setenv("TAG_EVENTS_ENABLED", "true")
+	assert.Nil(t, err)
+
+	tests := []struct {
+		name              string
+		event             map[string]interface{}
+		expectedOutputMsg string
+		expectedError     bool
+	}{
+		{
+			name: "TagResource event should be processed when TAG_EVENTS_ENABLED is true",
+			event: map[string]interface{}{
+				"detail": map[string]interface{}{
+					"eventName": "TagResource",
+					"requestParameters": map[string]interface{}{
+						"resourceArn": "arn:aws:logs:us-east-1:123456789012:log-group:/aws/lambda/my-function",
+						"tags": map[string]interface{}{
+							"logzio:logs": "true",
+						},
+					},
+				},
+			},
+			expectedOutputMsg: "TagResource event handled successfully",
+			expectedError:     false,
+		},
+		{
+			name: "TagResource20170331v2 event should be processed when TAG_EVENTS_ENABLED is true",
+			event: map[string]interface{}{
+				"detail": map[string]interface{}{
+					"eventName": "TagResource20170331v2",
+					"requestParameters": map[string]interface{}{
+						"resource": "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+						"tags": map[string]interface{}{
+							"logzio:logs": "true",
+						},
+					},
+				},
+			},
+			expectedOutputMsg: "TagResource20170331v2 event handled successfully",
+			expectedError:     false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			res, err := HandleRequest(ctx, test.event)
+
+			if test.expectedError {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
+			assert.Equal(t, test.expectedOutputMsg, res)
+		})
+	}
+
+	// Clean up
+	os.Unsetenv("TAG_EVENTS_ENABLED")
 }
 
 func TestTagResourceEventSkippedWithoutMonitoringTag(t *testing.T) {
 	ctx := setupHandlerTest()
+
+	// Enable tag events for this test
+	err := os.Setenv("TAG_EVENTS_ENABLED", "true")
+	assert.Nil(t, err)
+	defer os.Unsetenv("TAG_EVENTS_ENABLED")
 
 	tests := []struct {
 		name              string

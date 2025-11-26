@@ -23,6 +23,7 @@ type Config struct {
 	filterPattern        string
 	monitoringTagKey     string
 	monitoringTagValue   string
+	tagEventsEnabled     bool
 }
 
 func NewConfig() *Config {
@@ -35,6 +36,13 @@ func NewConfig() *Config {
 	monitoringTagValue := os.Getenv(envMonitoringTagValue)
 	if monitoringTagValue == emptyString {
 		monitoringTagValue = defaultMonitoringTagValue
+	}
+
+	// Get tag events enabled flag (default: false)
+	tagEventsEnabled := false
+	tagEventsEnabledStr := os.Getenv(envTagEventsEnabled)
+	if tagEventsEnabledStr == "true" || tagEventsEnabledStr == "True" || tagEventsEnabledStr == "TRUE" {
+		tagEventsEnabled = true
 	}
 
 	c := Config{
@@ -51,6 +59,7 @@ func NewConfig() *Config {
 		filterPattern:        os.Getenv(envFilterPattern),
 		monitoringTagKey:     monitoringTagKey,
 		monitoringTagValue:   monitoringTagValue,
+		tagEventsEnabled:     tagEventsEnabled,
 	}
 
 	err := c.validateRequired()

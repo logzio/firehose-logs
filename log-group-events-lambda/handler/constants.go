@@ -10,6 +10,7 @@ const (
 	envFilterPattern             = "FILTER_PATTERN"
 	envMonitoringTagKey          = "MONITORING_TAG_KEY"
 	envMonitoringTagValue        = "MONITORING_TAG_VALUE"
+	envTagEventsEnabled          = "TAG_EVENTS_ENABLED"
 
 	logzioSecretKeyName       = "logzioCustomLogGroups"
 	valuesSeparator           = ","
