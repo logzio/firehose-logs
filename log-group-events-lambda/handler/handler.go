@@ -156,16 +156,27 @@ func handleNewLogGroupEvent(ctx context.Context, newLogGroup string) {
 		return
 	}
 
+	// Check if subscription filter already exists to avoid redundant API calls
+	cwClient, err := getCloudWatchLogsClient()
+	if err != nil {
+		sugLog.Error("Failed to get cloudwatch logs client: ", err)
+		return
+	}
+
+	hasFilter, err := cwClient.hasSubscriptionFilter(newLogGroup)
+	if err != nil {
+		sugLog.Debug("Error checking if subscription filter exists for ", newLogGroup, ": ", err)
+		// Continue anyway.  If the check fails (network issue, temporary API error, etc.), we don't want to completely give up
+	} else if hasFilter {
+		sugLog.Debug("Subscription filter already exists for log group ", newLogGroup, ", skipping")
+		return
+	}
+
 	// Check if the log group is of a monitored service
 	currMonitoredServices := getServices()
 	var added []string
 	if currMonitoredServices != nil {
 		serviceToPrefix := getServicesMap()
-
-		cwClient, err := getCloudWatchLogsClient()
-		if err != nil {
-			sugLog.Error("Failed to get cloudwatch logs client")
-		}
 
 		for _, service := range currMonitoredServices {
 			if prefix, ok := serviceToPrefix[service]; ok {
@@ -183,11 +194,6 @@ func handleNewLogGroupEvent(ctx context.Context, newLogGroup string) {
 	// Check if the log group is of a monitored custom prefix
 	currCustomGroupsPrefixes := getCustomGroupsPrefixes()
 	if len(currCustomGroupsPrefixes) > 0 {
-		cwClient, err := getCloudWatchLogsClient()
-		if err != nil {
-			sugLog.Error("Failed to get cloudwatch logs client")
-		}
-
 		for _, prefix := range currCustomGroupsPrefixes {
 			if strings.Contains(newLogGroup, prefix) {
 				added, _ = cwClient.addSubscriptionFilter([]string{newLogGroup})

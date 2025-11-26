@@ -204,3 +204,32 @@ func (cwLogsClient *CloudWatchLogsClient) getLogGroupsWithPrefix(prefix string) 
 
 	return logGroups, nil
 }
+
+func (cwLogsClient *CloudWatchLogsClient) hasSubscriptionFilter(logGroupName string) (bool, error) {
+	if cwLogsClient == nil {
+		return false, fmt.Errorf("CloudWatch Logs client is nil")
+	}
+
+	destinationArn := envConfig.destinationArn
+
+	output, err := cwLogsClient.Client.DescribeSubscriptionFilters(&cloudwatchlogs.DescribeSubscriptionFiltersInput{
+		LogGroupName: &logGroupName,
+	})
+
+	if err != nil {
+		var awsErr awserr.Error
+		ok := errors.As(err, &awsErr)
+		if ok && awsErr.Code() == "ResourceNotFoundException" {
+			return false, nil
+		}
+		return false, err
+	}
+
+	for _, filter := range output.SubscriptionFilters {
+		if filter.DestinationArn != nil && *filter.DestinationArn == destinationArn {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
