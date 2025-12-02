@@ -63,6 +63,7 @@ Specify the stack details as per the table below, check the checkboxes and selec
 | `httpEndpointDestinationIntervalInSeconds` | The length of time, in seconds, that Kinesis Data Firehose buffers incoming data before delivering it to the destination                                                                                                                                                                                                                                                                                                         | `60`              |
 | `httpEndpointDestinationSizeInMBs`         | The size of the buffer, in MBs, that Kinesis Data Firehose uses for incoming data before delivering it to the destination                                                                                                                                                                                                                                                                                                        | `5`               |
 | `filterPattern`                            | CloudWatch Logs filter pattern to filter the logs being sent to Logz.io. Leave empty to send all logs. For more information on the syntax, see [Filter and Pattern Syntax](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html) or check the [Filter Pattern Guide](filter-pattern-docs.md).                                                                                                                                                                 | ` ` (empty string)|
+| `enableTagEvents`                          | Set to `true` to enable tag-based subscription. When enabled, tagging a Lambda function or CloudWatch Log Group with `logzio:subscribe=true` will automatically add a subscription filter.                                                                                                                                                                                                                                        | `false`           |
 
 
 > #### ⚠️ Important note ⚠️
@@ -99,6 +100,8 @@ Once new logs are added to your chosen log group, they will be sent to your Logz
 > If you've used the `services` field, you'll have to **wait 6 minutes** before creating new log groups for your chosen services. This is due to cold start and custom resource invocation, that can cause the Lambda to behave unexpectedly.
 
 ### Changelog:
+- **0.4.3**:
+  - Add tag-based subscription: tag resources with `logzio:subscribe=true` to auto-add subscription filters, opt-in via `enableTagEvents`. co-contributed by @volodymyrl-ilmakiage @oddity-lapada
 - **0.4.2**:
   - Refactor aws namespaces prefix
 - **0.4.1**:
