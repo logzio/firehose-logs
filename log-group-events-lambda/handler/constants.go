@@ -8,6 +8,7 @@ const (
 	envPutSubscriptionFilterRole = "PUT_SF_ROLE"
 	envStackName                 = "STACK_NAME"
 	envFilterPattern             = "FILTER_PATTERN"
+	envTagEventsEnabled          = "TAG_EVENTS_ENABLED"
 
 	logzioSecretKeyName    = "logzioCustomLogGroups"
 	valuesSeparator        = ","
@@ -15,4 +16,7 @@ const (
 	lambdaPrefix           = "/aws/lambda/"
 	subscriptionFilterName = "logzio_firehose"
 	maxRetries             = 10
+
+	monitoringTagKey   = "logzio:subscribe"
+	monitoringTagValue = "true"
 )
