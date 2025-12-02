@@ -68,6 +68,11 @@ Parameters:
     Type: String
     Description: 'CloudWatch Logs filter pattern to filter the logs being sent to Logz.io. Leave empty to send all logs. For more information on the syntax, see https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html.'
     Default: ''
+  enableTagEvents:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "false"
+    Description: 'Set to true to enable automatic subscription filter creation when resources are tagged with logzio:subscribe=true'
 
 Conditions:
   createEventbridgeTrigger: !Or
@@ -81,6 +86,9 @@ Conditions:
         - ''
   secretChangeEventsEnabled: !Equals
     - !Ref useCustomLogGroupsFromSecret
+    - "true"
+  tagEventsEnabled: !Equals
+    - !Ref enableTagEvents
     - "true"
 
 Resources:
@@ -136,6 +144,7 @@ Resources:
           PUT_SF_ROLE: !GetAtt firehosePutSubscriptionFilterRole.Arn
           STACK_NAME: !Ref AWS::StackName
           FILTER_PATTERN: !Ref filterPattern
+          TAG_EVENTS_ENABLED: !Ref enableTagEvents
 
   # Lambda permissions for log groups and using firehose
   cfnLambdaExecutionRole:
@@ -197,6 +206,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - 'logs:DescribeLogGroups'
+                  - 'logs:DescribeSubscriptionFilters'
                   - 'logs:PutSubscriptionFilter'
                   - 'logs:DeleteSubscriptionFilter'
                   - 'logs:TestMetricFilter'
@@ -277,6 +287,50 @@ Resources:
         - Arn: !GetAtt LogGroupEventsLambdaFunction.Arn
           Id: 'SecretChangeLambdaTarget'
 
+  tagResourceEvent:
+    Condition: tagEventsEnabled
+    DependsOn: LogGroupEventsLambdaFunction
+    Type: 'AWS::Events::Rule'
+    Properties:
+      Description: 'Triggered when a CloudWatch Log Group is tagged with logzio:subscribe=true'
+      EventPattern:
+        source:
+          - 'aws.logs'
+        detail-type:
+          - 'AWS API Call via CloudTrail'
+        detail:
+          eventSource:
+            - 'logs.amazonaws.com'
+          eventName:
+            - 'TagResource'
+      Name: !Join [ '-', [ 'logGroupTagResource', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt LogGroupEventsLambdaFunction.Arn
+          Id: 'TagResourceLambdaTarget'
+
+  lambdaTagResourceEvent:
+    Condition: tagEventsEnabled
+    DependsOn: LogGroupEventsLambdaFunction
+    Type: 'AWS::Events::Rule'
+    Properties:
+      Description: 'Triggered when a Lambda function is tagged with logzio:subscribe=true'
+      EventPattern:
+        source:
+          - 'aws.lambda'
+        detail-type:
+          - 'AWS API Call via CloudTrail'
+        detail:
+          eventSource:
+            - 'lambda.amazonaws.com'
+          eventName:
+            - 'TagResource20170331v2'
+      Name: !Join [ '-', [ 'lambdaTagResource', !Select [ 4, !Split [ '-', !Select [ 2, !Split [ '/', !Ref AWS::StackId ] ] ] ] ] ]
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt LogGroupEventsLambdaFunction.Arn
+          Id: 'LambdaTagResourceTarget'
+
   # Permissions to trigger events
   permissionForEventsToInvokeLambda:
     Condition: createEventbridgeTrigger
@@ -295,6 +349,24 @@ Resources:
       FunctionName: !Ref LogGroupEventsLambdaFunction
       Principal: 'events.amazonaws.com'
       SourceArn: !GetAtt secretChangeEvent.Arn
+
+  PermissionForTagResourceEventToInvokeLambda:
+    Condition: tagEventsEnabled
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref LogGroupEventsLambdaFunction
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt tagResourceEvent.Arn
+
+  PermissionForLambdaTagResourceEventToInvokeLambda:
+    Condition: tagEventsEnabled
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref LogGroupEventsLambdaFunction
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt lambdaTagResourceEvent.Arn
 
   # Firehose and S3 Resources
   logzioFirehose:
