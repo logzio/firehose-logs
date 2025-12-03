@@ -303,6 +303,75 @@ jobs:
           LOGZIO_API_TOKEN: ${{ secrets.LOGZIO_API_TOKEN }}
         run: go test -v ./e2e_test.go -run TestFilterPattern -args -logType=firehose_auto_test_$(echo ${{ steps.random_id.outputs.random_id }})3
 
+      # Test tag-based subscription
+      - name: Update Stack to enable tag events
+        run: |
+          aws cloudformation update-stack \
+          --stack-name auto-test-firehose-log \
+          --capabilities CAPABILITY_NAMED_IAM \
+          --use-previous-template --parameters ParameterKey=enableTagEvents,ParameterValue=true ParameterKey=filterPattern,ParameterValue="" ParameterKey=customLogGroups,UsePreviousValue=true ParameterKey=useCustomLogGroupsFromSecret,UsePreviousValue=true ParameterKey=logzioType,ParameterValue=firehose_auto_test_$(echo ${{ steps.random_id.outputs.random_id }})4 ParameterKey=logzioToken,UsePreviousValue=true ParameterKey=logzioListener,UsePreviousValue=true ParameterKey=services,UsePreviousValue=true
+
+      - name: Wait for stack to finish updating
+        run: aws cloudformation wait stack-update-complete --stack-name auto-test-firehose-log
+
+      - name: Create and tag a log group
+        id: create_tagged_log_group
+        run: |
+          log_group_name="/aws/test/tag-subscription-${{ steps.random_id.outputs.random_id }}"
+          echo "Creating log group: $log_group_name"
+          aws logs create-log-group --log-group-name "$log_group_name"
+          
+          # Tag the log group with logzio:subscribe=true
+          echo "Tagging log group with logzio:subscribe=true"
+          aws logs tag-resource --resource-arn "arn:aws:logs:${{ env.AWS_REGION }}:$(aws sts get-caller-identity --query Account --output text):log-group:$log_group_name" --tags "logzio:subscribe=true"
+          
+          echo "::set-output name=log_group_name::$log_group_name"
+
+      - name: Wait for subscription filter to be created
+        run: sleep 30
+
+      - name: Verify subscription filter was created by tag
+        run: |
+          log_group_name="${{ steps.create_tagged_log_group.outputs.log_group_name }}"
+          echo "Checking subscription filter for log group: $log_group_name"
+          
+          filter_details=$(aws logs describe-subscription-filters --log-group-name "$log_group_name")
+          filter_count=$(echo $filter_details | jq '.subscriptionFilters | length')
+          
+          if [[ "$filter_count" -eq 0 ]]; then
+            echo "❌ Subscription filter not created by tag!"
+            exit 1
+          fi
+          
+          echo "✅ Subscription filter was created by tagging with logzio:subscribe=true"
+
+      - name: Put test logs into tagged log group
+        run: |
+          log_group_name="${{ steps.create_tagged_log_group.outputs.log_group_name }}"
+          stream_name="test-stream"
+          
+          aws logs create-log-stream --log-group-name "$log_group_name" --log-stream-name "$stream_name"
+          aws logs put-log-events --log-group-name "$log_group_name" --log-stream-name "$stream_name" \
+            --log-events timestamp=$(date +%s000),message="Test log from tag-subscribed log group"
+
+      - name: Wait to allow data to get to logzio
+        run: sleep 240
+
+      - name: Run Tag Subscription Tests
+        working-directory: ./tests
+        env:
+          LOGZIO_API_TOKEN: ${{ secrets.LOGZIO_API_TOKEN }}
+          TAG_TEST_LOG_GROUP: ${{ steps.create_tagged_log_group.outputs.log_group_name }}
+        run: go test -v ./e2e_test.go -run TestTagSubscription -args -logType=firehose_auto_test_${{ steps.random_id.outputs.random_id }}4
+
+      - name: Delete tagged log group
+        if: always()
+        run: |
+          log_group_name="${{ steps.create_tagged_log_group.outputs.log_group_name }}"
+          if [[ -n "$log_group_name" ]]; then
+            aws logs delete-log-group --log-group-name "$log_group_name" || true
+          fi
+
       # Cleanup
       - name: Delete the API Gateway
         if: ${{ always() && steps.create_api.outcome == 'success' }}
