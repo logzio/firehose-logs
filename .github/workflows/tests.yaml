@@ -342,7 +342,7 @@ jobs:
           
           aws logs create-log-stream --log-group-name "$log_group_name" --log-stream-name "$stream_name"
           aws logs put-log-events --log-group-name "$log_group_name" --log-stream-name "$stream_name" \
-            --log-events timestamp=$(date +%s000),message="Test log from tag-subscribed log group"
+            --log-events timestamp=$(date +%s000),message="Test log from tag-subscribed log group GET request"
 
       - name: Wait to allow data to get to logzio
         run: sleep 240
