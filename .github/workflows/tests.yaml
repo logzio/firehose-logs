@@ -130,7 +130,7 @@ jobs:
           aws cloudformation deploy \
           --template-file ./cloudformation/sam-template.yaml \
           --stack-name auto-test-firehose-log \
-          --parameter-overrides logzioToken=${{ secrets.LOGZIO_SHIPPING_TOKEN }} logzioType=firehose_auto_test_$(echo ${{ steps.random_id.outputs.random_id }}) logzioListener=https://aws-firehose-logs-listener.logz.io services=apigateway filterPattern=GET customLogGroups=API-Gateway-Execution-Logs_$(echo ${{ steps.create_api.outputs.api_id }})/test \
+          --parameter-overrides logzioToken=${{ secrets.LOGZIO_SHIPPING_TOKEN }} logzioType=firehose_auto_test_$(echo ${{ steps.random_id.outputs.random_id }}) logzioListener=https://aws-firehose-logs-listener.logz.io services=apigateway filterPattern=GET customLogGroups=API-Gateway-Execution-Logs_$(echo ${{ steps.create_api.outputs.api_id }})/test enableTagEvents=false \
           --capabilities CAPABILITY_NAMED_IAM \
           --disable-rollback
 
@@ -225,7 +225,7 @@ jobs:
           aws cloudformation update-stack \
           --stack-name auto-test-firehose-log \
           --capabilities CAPABILITY_NAMED_IAM \
-          --use-previous-template --parameters ParameterKey=customLogGroups,ParameterValue=$(echo ${{ steps.create_secret.outputs.secret_arn }}) ParameterKey=useCustomLogGroupsFromSecret,ParameterValue=true ParameterKey=logzioType,ParameterValue=firehose_auto_test_$(echo ${{ steps.random_id.outputs.random_id }})2 ParameterKey=logzioToken,UsePreviousValue=true ParameterKey=logzioListener,UsePreviousValue=true ParameterKey=services,UsePreviousValue=true
+          --use-previous-template --parameters ParameterKey=customLogGroups,ParameterValue=$(echo ${{ steps.create_secret.outputs.secret_arn }}) ParameterKey=useCustomLogGroupsFromSecret,ParameterValue=true ParameterKey=logzioType,ParameterValue=firehose_auto_test_$(echo ${{ steps.random_id.outputs.random_id }})2 ParameterKey=logzioToken,UsePreviousValue=true ParameterKey=logzioListener,UsePreviousValue=true ParameterKey=services,UsePreviousValue=true ParameterKey=enableTagEvents,UsePreviousValue=true
 
       - name: Wait for stack to finish updating
         run: aws cloudformation wait stack-update-complete --stack-name auto-test-firehose-log
@@ -248,7 +248,7 @@ jobs:
           aws cloudformation update-stack \
           --stack-name auto-test-firehose-log \
           --capabilities CAPABILITY_NAMED_IAM \
-          --use-previous-template --parameters ParameterKey=filterPattern,ParameterValue="GET" ParameterKey=customLogGroups,UsePreviousValue=true ParameterKey=useCustomLogGroupsFromSecret,UsePreviousValue=true ParameterKey=logzioType,ParameterValue=firehose_auto_test_$(echo ${{ steps.random_id.outputs.random_id }})3 ParameterKey=logzioToken,UsePreviousValue=true ParameterKey=logzioListener,UsePreviousValue=true ParameterKey=services,UsePreviousValue=true
+          --use-previous-template --parameters ParameterKey=filterPattern,ParameterValue="GET" ParameterKey=customLogGroups,UsePreviousValue=true ParameterKey=useCustomLogGroupsFromSecret,UsePreviousValue=true ParameterKey=logzioType,ParameterValue=firehose_auto_test_$(echo ${{ steps.random_id.outputs.random_id }})3 ParameterKey=logzioToken,UsePreviousValue=true ParameterKey=logzioListener,UsePreviousValue=true ParameterKey=services,UsePreviousValue=true ParameterKey=enableTagEvents,UsePreviousValue=true
 
       - name: Wait for stack to finish updating
         run: aws cloudformation wait stack-update-complete --stack-name auto-test-firehose-log
