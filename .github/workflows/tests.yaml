@@ -1,13 +1,14 @@
 name: Unit and E2E Tests
 on:
   pull_request:
+    branches:
+      - master
   schedule:
     # Run once a week on Sunday
     - cron: "0 7 * * 0"
 
 jobs:
 
-#### Unit tests ####
   unit-tests:
     runs-on: ubuntu-latest
     steps:
@@ -33,7 +34,6 @@ jobs:
         working-directory: ./common
         run: go test -v -race -covermode=atomic -coverprofile=coverage.out
 
-#### E2E Tests ####
   e2e-tests:
     needs: unit-tests  # Run e2e test only if unit tests passed
     runs-on: ubuntu-latest
