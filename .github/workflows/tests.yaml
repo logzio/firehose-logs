@@ -130,7 +130,7 @@ jobs:
           aws cloudformation deploy \
           --template-file ./cloudformation/sam-template.yaml \
           --stack-name auto-test-firehose-log \
-          --parameter-overrides logzioToken=${{ secrets.LOGZIO_SHIPPING_TOKEN }} logzioType=firehose_auto_test_$(echo ${{ steps.random_id.outputs.random_id }}) logzioListener=https://aws-firehose-logs-listener.logz.io services=apigateway filterPattern=GET customLogGroups=API-Gateway-Execution-Logs_$(echo ${{ steps.create_api.outputs.api_id }})/test enableTagEvents=false \
+          --parameter-overrides logzioToken=${{ secrets.LOGZIO_SHIPPING_TOKEN }} logzioType=firehose_auto_test_$(echo ${{ steps.random_id.outputs.random_id }}) logzioListener=https://aws-firehose-logs-listener.logz.io services=apigateway filterPattern=GET customLogGroups=API-Gateway-Execution-Logs_$(echo ${{ steps.create_api.outputs.api_id }})/test enableTagEvents=true \
           --capabilities CAPABILITY_NAMED_IAM \
           --disable-rollback
 
@@ -304,16 +304,6 @@ jobs:
         run: go test -v ./e2e_test.go -run TestFilterPattern -args -logType=firehose_auto_test_$(echo ${{ steps.random_id.outputs.random_id }})3
 
       # Test tag-based subscription
-      - name: Update Stack to enable tag events
-        run: |
-          aws cloudformation update-stack \
-          --stack-name auto-test-firehose-log \
-          --capabilities CAPABILITY_NAMED_IAM \
-          --use-previous-template --parameters ParameterKey=enableTagEvents,ParameterValue=true ParameterKey=filterPattern,ParameterValue="" ParameterKey=customLogGroups,UsePreviousValue=true ParameterKey=useCustomLogGroupsFromSecret,UsePreviousValue=true ParameterKey=logzioType,ParameterValue=firehose_auto_test_$(echo ${{ steps.random_id.outputs.random_id }})4 ParameterKey=logzioToken,UsePreviousValue=true ParameterKey=logzioListener,UsePreviousValue=true ParameterKey=services,UsePreviousValue=true
-
-      - name: Wait for stack to finish updating
-        run: aws cloudformation wait stack-update-complete --stack-name auto-test-firehose-log
-
       - name: Create and tag a log group
         id: create_tagged_log_group
         run: |
@@ -362,7 +352,7 @@ jobs:
         env:
           LOGZIO_API_TOKEN: ${{ secrets.LOGZIO_API_TOKEN }}
           TAG_TEST_LOG_GROUP: ${{ steps.create_tagged_log_group.outputs.log_group_name }}
-        run: go test -v ./e2e_test.go -run TestTagSubscription -args -logType=firehose_auto_test_${{ steps.random_id.outputs.random_id }}4
+        run: go test -v ./e2e_test.go -run TestTagSubscription -args -logType=firehose_auto_test_${{ steps.random_id.outputs.random_id }}3
 
       - name: Delete tagged log group
         if: always()
