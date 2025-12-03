@@ -1,7 +1,6 @@
 name: Unit and E2E Tests
 on:
   pull_request:
-  workflow_dispatch:
   schedule:
     # Run once a week on Sunday
     - cron: "0 7 * * 0"
