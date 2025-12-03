@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
@@ -21,6 +22,7 @@ type Config struct {
 	servicesValue        string
 	filterName           string
 	filterPattern        string
+	tagEventsEnabled     bool
 }
 
 func NewConfig() *Config {
@@ -36,6 +38,7 @@ func NewConfig() *Config {
 		servicesValue:        os.Getenv(common.EnvServices),
 		filterName:           os.Getenv(envStackName) + "_" + subscriptionFilterName,
 		filterPattern:        os.Getenv(envFilterPattern),
+		tagEventsEnabled:     strings.EqualFold(os.Getenv(envTagEventsEnabled), "true"),
 	}
 
 	err := c.validateRequired()

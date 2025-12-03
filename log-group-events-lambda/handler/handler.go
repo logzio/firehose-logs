@@ -3,10 +3,12 @@ package handler
 import (
 	"context"
 	"fmt"
+	"strings"
+
+	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/logzio/firehose-logs/common"
 	"github.com/logzio/firehose-logs/logger"
 	"go.uber.org/zap"
-	"strings"
 )
 
 var sugLog *zap.SugaredLogger
@@ -86,6 +88,56 @@ func HandleRequest(ctx context.Context, event map[string]interface{}) (string, e
 		default:
 			sugLog.Debug("Detected unsupported Subscription Filter event")
 			return "", fmt.Errorf("unsupported Subscription Filter event")
+		}
+
+	case "TagResource", "TagResource20170331v2":
+		sugLog.Debugf("Detected EventBridge %s event", eventName)
+
+		if !envConfig.tagEventsEnabled {
+			sugLog.Debug("Tag events feature is disabled, skipping")
+			return fmt.Sprintf("%s event skipped - feature disabled", eventName), nil
+		}
+
+		if !hasMonitoringTag(requestParameters) {
+			sugLog.Debug("Monitoring tag not present, skipping")
+			return fmt.Sprintf("%s event skipped - monitoring tag not present", eventName), nil
+		}
+
+		var resourceArn string
+		if eventName == "TagResource" {
+			resourceArn, ok = requestParameters["resourceArn"].(string)
+		} else {
+			resourceArn, ok = requestParameters["resource"].(string)
+		}
+		if !ok || resourceArn == "" {
+			sugLog.Error("Resource ARN is missing from the event")
+			return "", fmt.Errorf("resource ARN is missing from %s event", eventName)
+		}
+
+		logGroup, err := getLogGroupFromArn(resourceArn)
+		if err != nil {
+			sugLog.Errorf("Failed to extract log group from ARN: %v", err)
+			return "", err
+		}
+
+		cwClient, err := getCloudWatchLogsClient()
+		if err != nil {
+			sugLog.Error("Failed to get CloudWatch Logs client")
+			return "", err
+		}
+
+		if cwClient.hasSubscriptionFilter(logGroup) {
+			sugLog.Debugf("Subscription filter already exists for %s, skipping", logGroup)
+			return fmt.Sprintf("%s event skipped - subscription filter already exists", eventName), nil
+		}
+
+		added, err := cwClient.addSubscriptionFilter([]string{logGroup})
+		if err != nil {
+			sugLog.Errorf("Failed to add subscription filter: %v", err)
+			return "", err
+		}
+		if len(added) > 0 {
+			sugLog.Infof("Added subscription filter to log group: %s", logGroup)
 		}
 
 	default:
@@ -235,4 +287,59 @@ func handleDeleteEvent(ctx context.Context, event common.RequestParameters) (str
 
 	sugLog.Info("Deleted subscription filters for the following log groups: ", deleted)
 	return "Event handled successfully", nil
+}
+
+// hasMonitoringTag checks if the request parameters contain the monitoring tag (logzio:monitor=true)
+func hasMonitoringTag(requestParameters map[string]interface{}) bool {
+	tags, ok := requestParameters["tags"].(map[string]interface{})
+	if !ok {
+		return false
+	}
+
+	for key, value := range tags {
+		if strings.EqualFold(key, monitoringTagKey) {
+			if val, ok := value.(string); ok && strings.EqualFold(val, monitoringTagValue) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// getLogGroupFromArn extracts the log group name from a CloudWatch Logs or Lambda ARN
+func getLogGroupFromArn(resourceArn string) (string, error) {
+	parsed, err := arn.Parse(resourceArn)
+	if err != nil {
+		return "", fmt.Errorf("invalid ARN format: %v", err)
+	}
+
+	switch parsed.Service {
+	case "logs":
+		// CloudWatch Logs ARN format: arn:aws:logs:region:account:log-group:/path/to/log-group
+		// Resource format: log-group:/aws/lambda/function-name
+		if strings.HasPrefix(parsed.Resource, "log-group:") {
+			logGroupName := strings.TrimPrefix(parsed.Resource, "log-group:")
+			return logGroupName, nil
+		}
+		return "", fmt.Errorf("unexpected CloudWatch Logs ARN resource format: %s", parsed.Resource)
+
+	case "lambda":
+		// Lambda ARN format: arn:aws:lambda:region:account:function:function-name
+		// Resource format: function:my-function or function:my-function:alias
+		if strings.HasPrefix(parsed.Resource, "function:") {
+			parts := strings.SplitN(parsed.Resource, ":", 2)
+			if len(parts) < 2 {
+				return "", fmt.Errorf("unexpected Lambda ARN resource format: %s", parsed.Resource)
+			}
+			functionName := parts[1]
+			if colonIdx := strings.Index(functionName, ":"); colonIdx != -1 {
+				functionName = functionName[:colonIdx]
+			}
+			return lambdaPrefix + functionName, nil
+		}
+		return "", fmt.Errorf("unexpected Lambda ARN resource format: %s", parsed.Resource)
+
+	default:
+		return "", fmt.Errorf("unsupported service type: %s", parsed.Service)
+	}
 }

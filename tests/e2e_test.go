@@ -82,6 +82,34 @@ func TestFilterPattern(t *testing.T) {
 	}
 }
 
+func TestTagSubscription(t *testing.T) {
+	logsApiToken := os.Getenv("LOGZIO_API_TOKEN")
+	if logsApiToken == "" {
+		t.Fatalf("LOGZIO_API_TOKEN environment variable not set")
+	}
+
+	expectedLogGroup := os.Getenv("TAG_TEST_LOG_GROUP")
+	if expectedLogGroup == "" {
+		t.Fatalf("TAG_TEST_LOG_GROUP environment variable not set")
+	}
+
+	logzioLogs, err := fetchLogs(logsApiToken)
+	if err != nil {
+		t.Fatalf("Failed to fetch logs: %v", err)
+	}
+
+	assert.Greater(t, logzioLogs.Hits.Total, 0, "No logs found from tag-subscribed log group")
+
+	found := false
+	for _, hit := range logzioLogs.Hits.Hits {
+		if strings.Contains(hit.Source.LogGroup, expectedLogGroup) {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, fmt.Sprintf("No logs found from expected log group: %s", expectedLogGroup))
+}
+
 func fetchLogs(logsApiToken string) (*LogResponse, error) {
 	url := "https://api.logz.io/v1/search"
 	client := &http.Client{}

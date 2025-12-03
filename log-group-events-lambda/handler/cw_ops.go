@@ -174,6 +174,32 @@ func (cwLogsClient *CloudWatchLogsClient) removeSubscriptionFilter(logGroups []s
 	return deleted, result.ErrorOrNil()
 }
 
+// hasSubscriptionFilter checks if our subscription filter already exists on a log group
+func (cwLogsClient *CloudWatchLogsClient) hasSubscriptionFilter(logGroup string) bool {
+	if cwLogsClient == nil {
+		return false
+	}
+
+	filterName := envConfig.filterName
+	output, err := cwLogsClient.Client.DescribeSubscriptionFilters(&cloudwatchlogs.DescribeSubscriptionFiltersInput{
+		LogGroupName:     &logGroup,
+		FilterNamePrefix: &filterName,
+	})
+
+	if err != nil {
+		sugLog.Debugf("Error checking subscription filter for %s: %v", logGroup, err)
+		return false
+	}
+
+	for _, filter := range output.SubscriptionFilters {
+		if filter.FilterName != nil && *filter.FilterName == filterName {
+			return true
+		}
+	}
+
+	return false
+}
+
 // getLogGroupsWithPrefix returns a list of log groups with the given prefix from cw client
 func (cwLogsClient *CloudWatchLogsClient) getLogGroupsWithPrefix(prefix string) ([]string, error) {
 	var nextToken *string
