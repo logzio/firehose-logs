@@ -102,7 +102,7 @@ Resources:
         S3Key: firehose-logs/<<VERSION>>/cfn-lambda.zip
       FunctionName: !Join [ '-', [ !Ref AWS::StackName, 'cfn-lambda' ] ]
       Handler: bootstrap
-      Runtime: provided.al2
+      Runtime: provided.al2023
       Role: !GetAtt cfnLambdaExecutionRole.Arn
       Timeout: !Ref triggerLambdaTimeout
       MemorySize: !Ref triggerLambdaMemory
@@ -127,7 +127,7 @@ Resources:
         S3Key: firehose-logs/<<VERSION>>/log-group-events-lambda.zip
       FunctionName: !Join [ '-', [ !Ref AWS::StackName, 'log-group-events-lambda' ] ]
       Handler: bootstrap
-      Runtime: provided.al2
+      Runtime: provided.al2023
       Role: !GetAtt logGroupLambdaExecutionRole.Arn
       Timeout: !Ref triggerLambdaTimeout
       MemorySize: !Ref triggerLambdaMemory
