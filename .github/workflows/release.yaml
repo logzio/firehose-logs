@@ -107,7 +107,6 @@ jobs:
           - 'ca-central-1'
           - 'ca-west-1'
           - 'af-south-1'
-          - 'me-south-1'
           - 'me-central-1'
           - 'il-central-1'
     steps:
