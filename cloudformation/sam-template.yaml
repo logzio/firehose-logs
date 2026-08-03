@@ -500,4 +500,3 @@ Resources:
                   - 'firehose:DescribeDeliveryStream'
                   - 'firehose:PutRecord'
                 Resource: !GetAtt logzioFirehose.Arn
-
