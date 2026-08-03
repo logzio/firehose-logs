@@ -101,7 +101,8 @@ Once new logs are added to your chosen log group, they will be sent to your Logz
 ### Changelog:
 - **0.4.4**:
     - Upgrade Amazon linux version to 2023
-- **0.4.4**:
+    - Remove unavailable me-sourth-1 region
+- **0.4.3**:
   - Add tag based subscription: tag resources with `logzio:subscribe=true` to auto add subscription filters, opt in via `enableTagEvents`. co-contributed by @volodymyrl-ilmakiage @oddity-lapada
 - **0.4.2**:
   - Refactor aws namespaces prefix
