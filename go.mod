@@ -9,7 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.34.2
 	github.com/aws/aws-secretsmanager-caching-go v1.2.0
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	go.uber.org/zap v1.27.0
 )
 
